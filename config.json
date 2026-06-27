@@ -1,3 +1,14 @@
 {
-  "maxIterations": 5
+  "maxIterations": 10,
+  "interactionLanguage": "en-US",
+  "reportLanguage": "en-US",
+  "userFacingLanguage": "zh-CN",
+  "languagePolicy": "interaction-and-report-config-authoritative",
+  "taskWorkspaceMode": "request-scoped-current-plus-history",
+  "requestIdPattern": "yyyyMMdd-HHmmss-slug",
+  "activationMode": "explicit",
+  "requestTitleMode": "ai-summary",
+  "runtimeMode": "skill-contained",
+  "taskStorage": "project",
+  "taskDirectory": "task"
 }

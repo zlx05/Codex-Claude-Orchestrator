@@ -7,15 +7,20 @@ This repository defines a Codex-driven dual-agent workflow:
 
 The design goal is not to let two agents chat freely. The goal is to create an auditable engineering loop with explicit plans, bounded execution, structured reports, and review gates.
 
+Default activation is explicit. Use this workflow only when the user asks for the collaboration skill or Codex-Claude loop. Ordinary coding and review requests stay Codex-only.
+
+Runtime mode is skill-contained: protocol files and scripts live in the skill directory. Target projects only receive `task/` records and the implementation edits requested by the user.
+
 ## Architecture
 
 ```text
 User
-  -> Codex
-      -> write task/plan.md
-      -> assemble task/context.md
+      -> Codex
+      -> create/select <target-project>/task/requests/<request-id>/
+      -> write <task-root>/plan.md
+      -> assemble <task-root>/context.md
       -> run claude -p with allowed tools
-      -> Claude edits code and writes task/execution.md
+      -> Claude edits code and writes <task-root>/execution.md
       -> Codex reviews diff, report, tests, and UI evidence
       -> PASS or REVISE
 ```
@@ -28,12 +33,16 @@ CLAUDE.md                Claude executor protocol
 SKILL.md                 Skill entry point for Codex
 config.json              Runtime configuration
 scripts/invoke-claude.ps1  PowerShell Claude CLI wrapper
-task/                    Runtime collaboration files
-  plan.md
-  context.md
-  execution.md
-  artifacts/round-N/
-  history/round-N/
+<target-project>/task/   Runtime collaboration files stored inside each project
+  CURRENT.md
+  requests/<request-id>/
+    request.md
+    plan.md
+    context.md
+    execution.md
+    review.md
+    artifacts/round-N/
+    history/round-N/
 ```
 
 ## Loop
@@ -65,16 +74,45 @@ Codex should use these classes in review notes when helpful.
 
 ## Command
 
-Use the PowerShell wrapper instead of manually embedding file contents in shell quotes:
+Create a request folder, then use the PowerShell wrapper instead of manually embedding file contents in shell quotes:
 
 ```powershell
-./scripts/invoke-claude.ps1 -Round 1
+<skill-root>/scripts/new-request.ps1 -ProjectRoot <target-project> -Title "AI summarized title" -RequestText "full user request"
 ```
 
-The wrapper reads `task/context.md` as raw UTF-8 text and runs:
+Codex should summarize the user's request into the title. The script can create a fallback title from `-RequestText` when `-Title` is omitted.
+
+```powershell
+<skill-root>/scripts/invoke-claude.ps1 -ProjectRoot <target-project> -Round 1
+```
+
+The wrapper reads `<task-root>/context.md` as raw UTF-8 text and runs:
 
 ```text
-claude -p <context> --print --allowedTools Read,Write,Edit,Bash --project .
+claude -p <context> --print --allowedTools Read,Write,Edit,Bash
 ```
 
 If your Claude CLI is actually DeepSeek-backed, keep the same command surface as long as `claude -p` accepts the prompt and tool flags.
+
+## Report Language
+
+`config.json` controls the language of human-readable execution and review records:
+
+```json
+{
+  "maxIterations": 10,
+  "interactionLanguage": "en-US",
+  "reportLanguage": "en-US",
+  "userFacingLanguage": "zh-CN",
+  "languagePolicy": "interaction-and-report-config-authoritative",
+  "taskWorkspaceMode": "request-scoped-current-plus-history",
+  "requestIdPattern": "yyyyMMdd-HHmmss-slug",
+  "activationMode": "explicit",
+  "requestTitleMode": "ai-summary",
+  "runtimeMode": "skill-contained",
+  "taskStorage": "project",
+  "taskDirectory": "task"
+}
+```
+
+Set `reportLanguage` to `zh-CN` for Chinese records or `en-US` for English records. Protocol status tokens such as `PASS`, `REVISE`, `DONE`, `PARTIAL`, and `BLOCKED` stay unchanged.

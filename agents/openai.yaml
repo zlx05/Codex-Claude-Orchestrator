@@ -1,0 +1,9 @@
+interface:
+  display_name: "Codex-Claude Orchestrator"
+  short_description: "Run explicit Codex-planned, Claude-executed PASS/REVISE coding loops."
+  brand_color: "#22C55E"
+  default_prompt: "Use $codex-claude-orchestrator to implement this request through a Codex-planned, Claude-executed review loop."
+
+policy:
+  allow_implicit_invocation: false
+

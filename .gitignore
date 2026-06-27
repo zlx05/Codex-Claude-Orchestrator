@@ -1,0 +1,25 @@
+# Local environment and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.next/
+
+# Logs and local caches
+*.log
+.DS_Store
+Thumbs.db
+
+# Runtime records created inside target projects when this skill is used from this repo
+task/
+
+# Browser profiles and generated UI evidence
+**/browser-profile-*/
+**/deep-profile-*/
+**/artifacts/round-*/
+

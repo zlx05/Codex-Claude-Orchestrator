@@ -1,6 +1,6 @@
 ---
 name: codex-claude-orchestrator
-description: Codex-driven dual-agent coding workflow where Codex plans and reviews while invoking Claude through `claude -p` as the executor. Use when the user asks to use Codex as the brain, Claude as the hands, run a Codex-Claude collaboration loop, generate task/plan.md and task/context.md, invoke Claude Code or a DeepSeek-backed Claude CLI, review task/execution.md, or enforce PASS/REVISE multi-round implementation.
+description: Explicitly invoked Codex-Claude dual-agent coding workflow where Codex plans and reviews while invoking Claude through `claude -p` as the executor. Use only when the user explicitly asks to use this skill, use the collaboration skill, use the dual-agent workflow, let Codex be the brain and Claude be the hands, run Claude through Codex, or run a PASS/REVISE Codex-Claude loop. Do not use for ordinary coding requests, ordinary reviews, or tasks where the user wants Codex alone.
 ---
 
 # Codex-Claude Orchestrator
@@ -8,7 +8,19 @@ description: Codex-driven dual-agent coding workflow where Codex plans and revie
 Use this skill to run a bounded two-agent engineering loop:
 
 - Codex plans, calls Claude, reviews, and controls revisions.
-- Claude implements exactly the plan and writes `task/execution.md`.
+- Claude implements exactly the plan and writes the execution report under the current request task root.
+
+## Activation
+
+Default activation mode is explicit. Use this skill only when the user clearly asks for the Codex-Claude collaboration workflow, for example:
+
+- "Use the collaboration skill for this request."
+- "Use $codex-claude-orchestrator to implement this."
+- "Let Codex plan and review while Claude executes."
+- "Run this through Claude from Codex."
+- "Run a PASS/REVISE loop."
+
+Do not activate this skill for normal implementation, normal review, Q&A, or cases where the user says they want only one agent. In those cases, answer or implement as Codex alone.
 
 ## First Steps
 
@@ -19,27 +31,32 @@ Use this skill to run a bounded two-agent engineering loop:
 
 ## Codex Workflow
 
-1. Create `task/` if missing.
-2. Write `task/plan.md`.
-3. Assemble `task/context.md` using:
+1. Create or select a request task root:
+   - New user request: summarize the user's request into a concise title, then run the bundled script from this skill directory: `scripts/new-request.ps1 -ProjectRoot "<target-project>" -Title "<AI summary title>" -RequestText "<full request>"`.
+   - Existing active request: read `task/CURRENT.md`.
+   - Explicit request: pass `-RequestId <id>` to the scripts.
+2. Write `<task-root>/plan.md`.
+3. Assemble `<task-root>/context.md` using:
    - `CLAUDE.md`
-   - the current `task/plan.md`
+   - the current `<task-root>/plan.md`
+   - `config.interactionLanguage`
+   - `config.reportLanguage`
    - relevant constraints, repository notes, and previous review notes
 4. Invoke Claude:
 
 ```powershell
-./scripts/invoke-claude.ps1 -Round 1
+<skill-root>/scripts/invoke-claude.ps1 -ProjectRoot <target-project> -Round 1 -RequestId <id>
 ```
 
-5. Read `task/execution.md`.
+5. Read `<task-root>/execution.md`.
 6. Inspect changed files and diffs. If no git repository exists, use file timestamps and targeted file reads.
 7. Review the result. The first line of the review must be exactly `PASS` or `REVISE`.
-8. On `REVISE`, overwrite `task/plan.md` with a precise correction plan and invoke Claude again, up to `config.maxIterations`.
-9. Archive every round under `task/history/round-N/`.
+8. On `REVISE`, overwrite `<task-root>/plan.md` with a precise correction plan and invoke Claude again, up to `config.maxIterations`.
+9. Archive every round under `<task-root>/history/round-N/`.
 
 ## Planning Contract
 
-`task/plan.md` must include:
+`<task-root>/plan.md` must include:
 
 - Goal.
 - Assumptions.
@@ -59,16 +76,62 @@ Keep the plan narrow. Claude should not need to infer architecture or product de
 Prefer the wrapper script because it avoids command-line quoting problems, especially on PowerShell:
 
 ```powershell
-./scripts/invoke-claude.ps1 -Round <N>
+<skill-root>/scripts/invoke-claude.ps1 -ProjectRoot <target-project> -Round <N>
 ```
 
-Use `-SkipAssemble` only when `task/context.md` has already been manually prepared:
+Use `-SkipAssemble` only when `<task-root>/context.md` has already been manually prepared:
 
 ```powershell
-./scripts/invoke-claude.ps1 -Round 2 -SkipAssemble
+<skill-root>/scripts/invoke-claude.ps1 -ProjectRoot <target-project> -Round 2 -RequestId <id> -SkipAssemble
 ```
 
 If the user's `claude` command is backed by DeepSeek, still use the same CLI entry point unless the user provides a different executable or flags.
+
+## UI Evidence
+
+When UI screenshots are needed, prefer the bundled capture wrapper:
+
+```powershell
+<skill-root>/scripts/capture-ui.ps1 -ProjectRoot <target-project> -Round <N> -HtmlPath demo/index.html
+```
+
+It uses installed Chrome or Edge through the Chrome DevTools Protocol. Requirements: PowerShell, Node 20+ for built-in WebSocket support, and Chrome or Edge. If the browser is not auto-detected, pass `-BrowserPath <path-to-chrome-or-edge>`. If no compatible browser exists, record that UI screenshots were not captured and continue with manual or code-level review.
+
+## Report Language
+
+`config.json` controls task artifact language and user-facing language separately:
+
+```json
+{
+  "maxIterations": 10,
+  "interactionLanguage": "en-US",
+  "reportLanguage": "en-US",
+  "userFacingLanguage": "zh-CN",
+  "languagePolicy": "interaction-and-report-config-authoritative",
+  "taskWorkspaceMode": "request-scoped-current-plus-history",
+  "requestIdPattern": "yyyyMMdd-HHmmss-slug",
+  "activationMode": "explicit",
+  "requestTitleMode": "ai-summary",
+  "runtimeMode": "skill-contained",
+  "taskStorage": "project",
+  "taskDirectory": "task"
+}
+```
+
+Use `interactionLanguage` for plan, context, review, and Codex-to-Claude round instructions. Use `reportLanguage` for execution reports, changed-file summaries, validation notes, UI notes, and deviation explanations. Use `userFacingLanguage` for final replies to the user.
+
+Treat `interactionLanguage` and `reportLanguage` as authoritative. Do not switch languages because a terminal displayed mojibake. Fix the encoding path or use safe escaping while preserving the configured language.
+
+## Task File Semantics
+
+- Runtime protocol files (`SKILL.md`, `AGENT.md`, `CLAUDE.md`, `config.json`, and `scripts/`) live inside the skill. Do not copy them into target projects.
+- Target projects only receive task records under `task/` plus the actual implementation edits requested by the user.
+- `task/CURRENT.md` points to the active request.
+- `task/requests/<request-id>/request.md` stores the user's request for that work item.
+- `task/requests/<request-id>/plan.md`, `context.md`, `execution.md`, and `review.md` are current working copies for the active/latest round of that request.
+- `task/requests/<request-id>/history/round-N/` stores snapshots for each completed round in that request.
+- `task/requests/<request-id>/artifacts/round-N/` stores UI screenshots and generated evidence for that request round.
+- Root-level `task/plan.md`, `task/context.md`, `task/execution.md`, and `task/review.md` are legacy-compatible only. Prefer request-scoped paths for new work.
 
 ## Review Contract
 

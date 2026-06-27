@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codex + Claude / Dual-Agent Orchestrator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="particles" aria-hidden="true"></canvas>
+
+  <div class="hud" id="hud" role="status" aria-live="polite">
+    <span class="hud-label">Round</span>
+    <span class="hud-value" id="hud-round">1</span>
+    <span class="hud-sep"></span>
+    <span class="hud-label">Status</span>
+    <span class="hud-value" id="hud-status">ACTIVE</span>
+  </div>
+
+  <header class="hero">
+    <div class="hero-badges">
+      <span class="badge badge-codex">Brain</span>
+      <span class="badge badge-claude">Hands</span>
+    </div>
+    <h1 class="hero-title">
+      <span class="token token-codex">Codex</span>
+      <span class="hero-connector" aria-hidden="true">+</span>
+      <span class="token token-claude">Claude</span>
+    </h1>
+    <p class="hero-tagline">Codex plans and reviews. Claude implements and reports. They loop until the gate says PASS.</p>
+  </header>
+
+  <main>
+    <section class="board" id="board" aria-label="Orchestration loop">
+      <div class="section-head">
+        <h2 class="section-label">Orchestration Loop</h2>
+        <span class="section-badge" id="board-badge">Round 1 active</span>
+      </div>
+      <div class="board-track">
+        <div class="board-node" data-step="plan" tabindex="0" role="button" aria-pressed="false">
+          <div class="node-icon" aria-hidden="true">1</div>
+          <div class="node-title">Codex Plans</div>
+          <div class="node-desc">Receives request, writes plan.md</div>
+        </div>
+        <div class="board-connector" aria-hidden="true">
+          <svg class="connector-svg" viewBox="0 0 60 12" preserveAspectRatio="none">
+            <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
+          </svg>
+        </div>
+        <div class="board-node" data-step="build" tabindex="0" role="button" aria-pressed="false">
+          <div class="node-icon" aria-hidden="true">2</div>
+          <div class="node-title">Claude Builds</div>
+          <div class="node-desc">Implements plan, writes report</div>
+        </div>
+        <div class="board-connector" aria-hidden="true">
+          <svg class="connector-svg" viewBox="0 0 60 12" preserveAspectRatio="none">
+            <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
+          </svg>
+        </div>
+        <div class="board-node" data-step="review" tabindex="0" role="button" aria-pressed="false">
+          <div class="node-icon" aria-hidden="true">3</div>
+          <div class="node-title">Codex Reviews</div>
+          <div class="node-desc">Inspects diff, tests, evidence</div>
+        </div>
+        <div class="board-connector" aria-hidden="true">
+          <svg class="connector-svg" viewBox="0 0 60 12" preserveAspectRatio="none">
+            <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
+          </svg>
+        </div>
+        <div class="board-node board-node-gate" data-step="gate" tabindex="0" role="button" aria-pressed="false">
+          <div class="node-icon gate-icon" id="gate-icon" aria-hidden="true">?</div>
+          <div class="node-title">Gate</div>
+          <div class="node-desc" id="gate-desc">Awaiting review</div>
+        </div>
+      </div>
+      <div class="board-progress" aria-hidden="true">
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-pips">
+          <span class="pip pip-done" data-pip="1"></span>
+          <span class="pip" data-pip="2"></span>
+          <span class="pip" data-pip="3"></span>
+          <span class="pip pip-gate" data-pip="4"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="inspector" id="inspector" aria-label="Step inspector">
+      <div class="section-head">
+        <h2 class="section-label">Inspector</h2>
+        <span class="inspector-badge" id="inspector-badge">Ready</span>
+      </div>
+      <div class="inspector-body" id="inspector-body">
+        <div class="inspector-default">
+          <div class="inspector-icon" aria-hidden="true">&#9881;</div>
+          <p>Select a step above to see what happens at each stage of the collaboration loop.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="folders" id="folders" aria-label="Request folder structure">
+      <div class="section-head">
+        <h2 class="section-label">Request Folders</h2>
+        <span class="section-badge">task/requests/&lt;id&gt;/</span>
+      </div>
+      <div class="folder-grid">
+        <article class="folder-card folder-card-active" tabindex="0">
+          <div class="folder-icon" aria-hidden="true">R</div>
+          <div class="folder-content">
+            <div class="folder-path">task/requests/<wbr>20260627-190439-fresh-game</div>
+            <div class="folder-files">
+              <span class="file-chip">plan.md</span>
+              <span class="file-chip">context.md</span>
+              <span class="file-chip">execution.md</span>
+              <span class="file-chip">review.md</span>
+            </div>
+          </div>
+          <div class="folder-badge">Active</div>
+        </article>
+        <article class="folder-card folder-card-archive" tabindex="0">
+          <div class="folder-icon" aria-hidden="true">A</div>
+          <div class="folder-content">
+            <div class="folder-path">history/<wbr>round-1/</div>
+            <div class="folder-files">
+              <span class="file-chip file-chip-snapshot">plan.md</span>
+              <span class="file-chip file-chip-snapshot">execution.md</span>
+              <span class="file-chip file-chip-snapshot">review.md</span>
+            </div>
+          </div>
+          <div class="folder-badge">Archive</div>
+        </article>
+        <article class="folder-card folder-card-artifact" tabindex="0">
+          <div class="folder-icon" aria-hidden="true">UI</div>
+          <div class="folder-content">
+            <div class="folder-path">artifacts/<wbr>round-1/</div>
+            <div class="folder-files">
+              <span class="file-chip file-chip-evidence">desktop.png</span>
+              <span class="file-chip file-chip-evidence">mobile.png</span>
+            </div>
+          </div>
+          <div class="folder-badge">Evidence</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="review-gate" id="review-gate" aria-label="Review gate">
+      <div class="section-head">
+        <h2 class="section-label">Review Gate</h2>
+        <span class="section-badge" id="gate-badge">Ready for review</span>
+      </div>
+      <div class="gate-controls">
+        <button class="gate-btn gate-btn-pass" id="btn-pass" aria-label="Pass review - approve and finish">
+          <span class="gate-btn-icon" aria-hidden="true">&#10003;</span>
+          <span class="gate-btn-label">PASS</span>
+          <span class="gate-btn-hint">Approve and finish</span>
+        </button>
+        <div class="gate-divider" aria-hidden="true">
+          <span class="gate-vs">or</span>
+        </div>
+        <button class="gate-btn gate-btn-revise" id="btn-revise" aria-label="Revise - send back for changes">
+          <span class="gate-btn-icon" aria-hidden="true">&#8635;</span>
+          <span class="gate-btn-label">REVISE</span>
+          <span class="gate-btn-hint">Send back for changes</span>
+        </button>
+      </div>
+      <div class="gate-result" id="gate-result" aria-live="polite"></div>
+    </section>
+
+    <section class="callout">
+      <div class="callout-card">
+        <p class="callout-text">Codex is the <strong>brain</strong>. Claude is the <strong>hands</strong>. Together they form an auditable engineering loop with explicit plans, bounded execution, structured reports, and review gates.</p>
+        <p class="callout-sub">Each user request gets its own folder. Every round is archived. Every change is traceable.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Codex-Claude Orchestrator Skill &middot; Dual-Agent Workflow &middot; <span id="footer-status">Ready</span></p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
