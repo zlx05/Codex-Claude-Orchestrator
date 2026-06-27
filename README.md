@@ -1,8 +1,41 @@
-# Codex-Claude 协作 Skill
+# Codex-Claude Orchestrator
 
-这是一个给 Codex 使用的双智能体协作 skill：Codex 负责规划、调用、审查和控制循环，Claude 通过 `claude -p` 非交互模式负责按计划执行代码修改。
+一个用于 Codex 的双智能体协作 skill：Codex 做“大脑”，负责分析、规划、调用、审查和控制循环；Claude 做“手”，通过 `claude -p` 非交互模式按计划执行代码修改。
 
-核心目标不是让两个模型自由聊天，而是把协作过程变成可审计、可复盘、可迭代的工程流程。
+这个仓库现在采用标准发布结构：仓库根目录用于 GitHub 展示、许可证和 demo，真正可安装的 skill 位于 [`codex-claude-orchestrator/`](codex-claude-orchestrator/)。
+
+## 快速安装
+
+在 Codex 中安装这个 skill 时，请安装子目录：
+
+```text
+https://github.com/zlx05/Codex-Claude-Orchestrator/tree/main/codex-claude-orchestrator
+```
+
+也可以手动下载后，把 `codex-claude-orchestrator/` 文件夹放到 Codex skills 目录：
+
+```powershell
+git clone https://github.com/zlx05/Codex-Claude-Orchestrator.git
+Copy-Item -Recurse .\Codex-Claude-Orchestrator\codex-claude-orchestrator "$env:USERPROFILE\.codex\skills\codex-claude-orchestrator"
+```
+
+安装后重启 Codex，让它重新加载 skill。
+
+## 如何调用
+
+这个 skill 默认不会自动触发。你需要明确说：
+
+```text
+调用 Codex-Claude 协作 skill，帮我实现这个需求：...
+```
+
+或者：
+
+```text
+使用 codex-claude-orchestrator，让 Codex 规划和审查，Claude 执行。
+```
+
+如果你只想让 Codex 单独工作，不要提“协作 skill”即可。
 
 ## 工作方式
 
@@ -30,60 +63,64 @@
 | 审查 UI 截图 | 不自行扩大范围 |
 | 控制 PASS / REVISE 循环 | 遇到阻塞如实说明 |
 
-## 什么时候使用
-
-适合这些场景：
+## 适合场景
 
 - 你明确想让 Codex 做“大脑”、Claude 做“手”。
 - 你想用双智能体循环完成一个代码任务。
 - 你想保留完整的计划、执行、审查记录。
 - 你想让 Claude 执行，但由 Codex 控制范围和验收。
 
-不适合这些场景：
+不适合：
 
 - 普通问答。
 - 简单代码修改。
 - 只想用 Codex 单独完成任务。
 - 不希望项目里生成 `task/` 记录。
 
-本 skill 默认是显式触发，不会因为普通代码需求自动启用。
-
-## 如何调用
-
-在 Codex 里明确说类似下面的话：
-
-```text
-调用 Codex-Claude 协作 skill，帮我实现这个需求：...
-```
-
-或者：
-
-```text
-使用 codex-claude-orchestrator，让 Codex 规划和审查，Claude 执行。
-```
-
-如果你只想让 Codex 单独工作，不要提“协作 skill”即可。
-
-## 目录结构
+## 仓库结构
 
 ```text
 .
-├─ SKILL.md                 # Codex skill 入口说明
-├─ AGENT.md                 # Codex 作为大脑的工作协议
-├─ CLAUDE.md                # Claude 作为执行者的工作协议
-├─ DESIGN.md                # 架构设计说明
-├─ config.json              # 协作流程配置
-├─ agents/
-│  └─ openai.yaml           # Codex skill 展示和触发元信息
-├─ scripts/
-│  ├─ new-request.ps1       # 创建一次新的需求记录
-│  ├─ invoke-claude.ps1     # 组装上下文并调用 claude -p
-│  └─ capture-ui.ps1        # 捕获 UI 截图用于审查
-└─ demo/
-   ├─ index.html            # 静态演示页面
-   ├─ styles.css            # 演示页面样式
-   └─ script.js             # 演示页面交互
+├─ README.md
+├─ LICENSE
+├─ demo/
+│  ├─ index.html
+│  ├─ styles.css
+│  └─ script.js
+└─ codex-claude-orchestrator/
+   ├─ SKILL.md
+   ├─ AGENT.md
+   ├─ CLAUDE.md
+   ├─ DESIGN.md
+   ├─ config.json
+   ├─ agents/
+   │  └─ openai.yaml
+   └─ scripts/
+      ├─ new-request.ps1
+      ├─ invoke-claude.ps1
+      └─ capture-ui.ps1
 ```
+
+其中：
+
+- `README.md`：GitHub 首页中文说明。
+- `LICENSE`：开源许可证。
+- `demo/`：展示这个协作 skill 的静态网页。
+- `codex-claude-orchestrator/`：真正的 Codex skill，可安装部分。
+
+## Skill 内部文件
+
+- `SKILL.md`：Codex skill 入口，定义触发方式和主流程。
+- `AGENT.md`：Codex 作为“大脑”的工作协议。
+- `CLAUDE.md`：Claude 作为执行者的工作协议。
+- `DESIGN.md`：架构设计说明。
+- `config.json`：语言、轮数、task 存储等配置。
+- `agents/openai.yaml`：Codex 展示和触发元信息。
+- `scripts/new-request.ps1`：创建一次新的需求记录。
+- `scripts/invoke-claude.ps1`：组装上下文并调用 `claude -p`。
+- `scripts/capture-ui.ps1`：通过 Chrome 或 Edge 捕获 UI 截图。
+
+## 运行记录
 
 运行协作任务时，目标项目里会生成：
 
@@ -103,9 +140,9 @@ task/
 
 `task/` 是运行记录，默认不作为 skill 源码上传。
 
-## 配置说明
+## 配置语言
 
-主要配置在 `config.json`：
+主要配置在 `codex-claude-orchestrator/config.json`：
 
 ```json
 {
@@ -130,7 +167,7 @@ task/
 - `runtimeMode`：当前为 `skill-contained`，表示脚本和协议文件保留在 skill 内，不复制到目标项目。
 - `taskStorage`：当前为 `project`，表示任务记录写入目标项目。
 
-如果你希望 task 报告也用中文，可以把：
+如果你希望 task 报告用中文，可以把：
 
 ```json
 "reportLanguage": "zh-CN"
@@ -163,15 +200,6 @@ demo/index.html
 ```
 
 这个 demo 不需要启动开发服务器。
-
-## 设计原则
-
-- Codex 不直接把任务交给 Claude 自由发挥，而是先写精确计划。
-- Claude 只能按计划修改允许范围内的文件。
-- 每一轮都要留下计划、上下文、执行报告、审查记录。
-- 审查第一行必须是 `PASS` 或 `REVISE`。
-- UI 类任务需要尽量提供截图或可视化证据。
-- 目标项目不需要复制本 skill 的脚本和配置，只保存 `task/` 运行记录。
 
 ## 注意事项
 
