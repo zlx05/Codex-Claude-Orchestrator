@@ -1,14 +1,23 @@
 ---
 name: codex-claude-orchestrator
-description: Explicitly invoked Codex-Claude dual-agent coding workflow where Codex plans and reviews while invoking Claude through `claude -p` as the executor. Use only when the user explicitly asks to use this skill, use the collaboration skill, use the dual-agent workflow, let Codex be the brain and Claude be the hands, run Claude through Codex, or run a PASS/REVISE Codex-Claude loop. Do not use for ordinary coding requests, ordinary reviews, or tasks where the user wants Codex alone.
+description: Explicitly invoked bidirectional Codex-Claude dual-agent coding workflow. When used from Codex, Codex plans/reviews and Claude executes through `claude -p`. When used from Claude, Claude plans/reviews and Codex executes through `codex exec`. Use only when the user explicitly asks to use this skill, use the collaboration skill, use the dual-agent workflow, let Codex be the brain and Claude be the hands, let Claude be the brain and Codex be the hands, or run a PASS/REVISE Codex-Claude loop. Do not use for ordinary coding requests, ordinary reviews, or tasks where the user wants a single agent.
 ---
 
-# Codex-Claude Orchestrator
+# Codex-Claude Bidirectional Orchestrator
 
-Use this skill to run a bounded two-agent engineering loop:
+This skill supports two bounded two-agent engineering loops that are directionally opposite:
 
-- Codex plans, calls Claude, reviews, and controls revisions.
-- Claude implements exactly the plan and writes the execution report under the current request task root.
+- **Codex-led mode** (Codex is the host): Codex plans, calls Claude via `claude -p`, reviews, and controls revisions. Claude implements exactly the plan.
+- **Claude-led mode** (Claude is the host): Claude plans, calls Codex via `codex exec`, reviews, and controls revisions. Codex implements exactly the plan.
+
+The mode is selected automatically by the host surface: if you are in Codex, you are the brain; if you are in Claude, you are the brain. Both modes use the same task root structure and review gates.
+
+## Host Auto-Selection
+
+- **Codex host** -- Codex-led mode. Read `AGENT.md` for the brain protocol. Codex writes plans, invokes Claude via `scripts/invoke-claude.ps1`, and reviews results.
+- **Claude host** -- Claude-led mode. Read `CLAUDE-ORCHESTRATOR.md` for the brain protocol. Claude writes plans, invokes Codex via `scripts/invoke-codex.ps1`, and reviews results.
+
+Do not activate yourself in a loop. The brain agent invokes the executor agent; neither agent invokes itself.
 
 ## Activation
 
@@ -17,19 +26,22 @@ Default activation mode is explicit. Use this skill only when the user clearly a
 - "Use the collaboration skill for this request."
 - "Use $codex-claude-orchestrator to implement this."
 - "Let Codex plan and review while Claude executes."
+- "Let Claude plan and review while Codex executes."
 - "Run this through Claude from Codex."
+- "Run this through Codex from Claude."
 - "Run a PASS/REVISE loop."
 
-Do not activate this skill for normal implementation, normal review, Q&A, or cases where the user says they want only one agent. In those cases, answer or implement as Codex alone.
+Do not activate this skill for normal implementation, normal review, Q&A, or cases where the user says they want only one agent. In those cases, answer or implement as a single agent.
 
 ## First Steps
 
-1. Read `AGENT.md`.
-2. Read `CLAUDE.md`.
-3. Read `config.json`.
-4. Inspect the target repository enough to write a file/symbol-level plan.
+1. Determine which host you are running in (Codex or Claude).
+2. Read the brain protocol for your host: `AGENT.md` (Codex host) or `CLAUDE-ORCHESTRATOR.md` (Claude host).
+3. Read the executor protocol for the other agent: `CLAUDE.md` (when Codex is host) or `CODEX.md` (when Claude is host).
+4. Read `config.json`.
+5. Inspect the target repository enough to write a file/symbol-level plan.
 
-## Codex Workflow
+## Codex-Led Workflow (Codex Host)
 
 1. Create or select a request task root:
    - New user request: summarize the user's request into a concise title, then run the bundled script from this skill directory: `scripts/new-request.ps1 -ProjectRoot "<target-project>" -Title "<AI summary title>" -RequestText "<full request>"`.
@@ -52,6 +64,30 @@ Do not activate this skill for normal implementation, normal review, Q&A, or cas
 6. Inspect changed files and diffs. If no git repository exists, use file timestamps and targeted file reads.
 7. Review the result. The first line of the review must be exactly `PASS` or `REVISE`.
 8. On `REVISE`, overwrite `<task-root>/plan.md` with a precise correction plan and invoke Claude again, up to `config.maxIterations`.
+9. Archive every round under `<task-root>/history/round-N/`.
+
+## Claude-Led Workflow (Claude Host)
+
+When Claude is the host and the user explicitly activates the bidirectional collaboration workflow:
+
+1. Create or select a request task root using the same `scripts/new-request.ps1` script.
+2. Write `<task-root>/plan.md`.
+3. Assemble `<task-root>/context.md` using:
+   - `CODEX.md`
+   - the current `<task-root>/plan.md`
+   - `config.interactionLanguage`
+   - `config.reportLanguage`
+   - relevant constraints, repository notes, and previous review notes
+4. Invoke Codex:
+
+```powershell
+<skill-root>/scripts/invoke-codex.ps1 -ProjectRoot <target-project> -Round 1 -RequestId <id>
+```
+
+5. Read `<task-root>/execution.md`.
+6. Inspect changed files and diffs. If no git repository exists, use file timestamps and targeted file reads.
+7. Review the result. The first line of the review must be exactly `PASS` or `REVISE`.
+8. On `REVISE`, overwrite `<task-root>/plan.md` with a precise correction plan and invoke Codex again, up to `config.maxIterations`.
 9. Archive every round under `<task-root>/history/round-N/`.
 
 ## Planning Contract

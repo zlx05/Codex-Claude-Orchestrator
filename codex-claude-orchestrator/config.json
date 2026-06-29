@@ -10,5 +10,12 @@
   "requestTitleMode": "ai-summary",
   "runtimeMode": "skill-contained",
   "taskStorage": "project",
-  "taskDirectory": "task"
+  "taskDirectory": "task",
+  "supportedModes": ["codex-led", "claude-led"],
+  "defaultModeByHost": {
+    "codex": "codex-led",
+    "claude": "claude-led"
+  },
+  "codexCommand": "codex",
+  "claudeCommand": "claude"
 }

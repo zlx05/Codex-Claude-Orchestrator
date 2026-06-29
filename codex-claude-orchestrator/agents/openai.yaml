@@ -1,8 +1,8 @@
 interface:
-  display_name: "Codex-Claude Orchestrator"
-  short_description: "Run explicit Codex-planned, Claude-executed PASS/REVISE coding loops."
+  display_name: "Codex-Claude Bidirectional Orchestrator"
+  short_description: "Run explicit PASS/REVISE coding loops: Codex plans & Claude executes, or Claude plans & Codex executes."
   brand_color: "#22C55E"
-  default_prompt: "Use $codex-claude-orchestrator to implement this request through a Codex-planned, Claude-executed review loop."
+  default_prompt: "Use $codex-claude-orchestrator to implement this request through a PASS/REVISE dual-agent review loop. Codex plans and Claude executes when in Codex; Claude plans and Codex executes when in Claude."
 
 policy:
   allow_implicit_invocation: false

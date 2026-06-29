@@ -4,8 +4,8 @@ param(
     [string]$RequestId = "",
     [switch]$SkipAssemble,
     [switch]$DryRun,
-    [string]$ClaudeCommand = "claude",
-    [string]$AllowedTools = "Read,Write,Edit,Bash"
+    [string]$CodexCommand = "codex",
+    [string]$AllowedMode = "exec"
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,7 +48,7 @@ $projectRootPath = (Resolve-Path -LiteralPath $ProjectRoot).Path
 Set-Location -LiteralPath $projectRootPath
 
 $configPath = Join-Path $skillRoot "config.json"
-$claudeProtocolPath = Join-Path $skillRoot "CLAUDE.md"
+$codexProtocolPath = Join-Path $skillRoot "CODEX.md"
 $config = Read-JsonFile -Path $configPath
 $maxIterations = 5
 if ($null -ne $config -and $null -ne $config.maxIterations) {
@@ -74,9 +74,9 @@ $taskWorkspaceMode = "current-plus-history"
 if ($null -ne $config -and $null -ne $config.taskWorkspaceMode) {
     $taskWorkspaceMode = [string]$config.taskWorkspaceMode
 }
-if ($null -ne $config -and $null -ne $config.claudeCommand -and
-    ([string]::IsNullOrWhiteSpace($ClaudeCommand) -or $ClaudeCommand -eq "claude")) {
-    $ClaudeCommand = [string]$config.claudeCommand
+if ($null -ne $config -and $null -ne $config.codexCommand -and
+    ([string]::IsNullOrWhiteSpace($CodexCommand) -or $CodexCommand -eq "codex")) {
+    $CodexCommand = [string]$config.codexCommand
 }
 
 if ($Round -lt 1) {
@@ -92,15 +92,15 @@ New-Item -ItemType Directory -Force -Path $taskRoot | Out-Null
 New-Item -ItemType Directory -Force -Path "$taskRoot/history" | Out-Null
 New-Item -ItemType Directory -Force -Path "$taskRoot/artifacts/round-$Round" | Out-Null
 
-if (-not (Test-Path -LiteralPath $claudeProtocolPath)) {
-    throw "Missing skill CLAUDE.md at $claudeProtocolPath."
+if (-not (Test-Path -LiteralPath $codexProtocolPath)) {
+    throw "Missing skill CODEX.md at $codexProtocolPath."
 }
 if (-not (Test-Path -LiteralPath "$taskRoot/plan.md")) {
-    throw "Missing $taskRoot/plan.md. Codex must write the plan before invoking Claude."
+    throw "Missing $taskRoot/plan.md. Claude must write the plan before invoking Codex."
 }
 
 if (-not $SkipAssemble) {
-    $claudeProtocol = Get-Content -LiteralPath $claudeProtocolPath -Raw -Encoding UTF8
+    $codexProtocol = Get-Content -LiteralPath $codexProtocolPath -Raw -Encoding UTF8
     $plan = Get-Content -LiteralPath "$taskRoot/plan.md" -Raw -Encoding UTF8
     $previousReviewPath = "$taskRoot/review.md"
     $previousReview = ""
@@ -132,13 +132,13 @@ Task workspace mode: $taskWorkspaceMode
 
 ## Executor Protocol
 
-$claudeProtocol
+$codexProtocol
 
 ## Current Plan
 
 $plan
 
-## Previous Codex Review
+## Previous Claude Review
 
 $previousReview
 
@@ -159,22 +159,29 @@ if (-not (Test-Path -LiteralPath "$taskRoot/context.md")) {
 $prompt = Get-Content -LiteralPath "$taskRoot/context.md" -Raw -Encoding UTF8
 
 if ($DryRun) {
-    Write-Host "Dry run OK for Claude round $Round."
+    Write-Host "Dry run OK for Codex round $Round."
     Write-Host "Task root: $taskRoot"
     Write-Host "Context path: $taskRoot/context.md"
     Write-Host "Prompt length: $($prompt.Length) characters"
     Write-Host "Interaction language: $interactionLanguage"
     Write-Host "Report language: $reportLanguage"
+    Write-Host "Codex command: $CodexCommand"
+    Write-Host "Allowed mode: $AllowedMode"
     exit 0
 }
 
-Write-Host "Invoking Claude round $Round..."
-$claudeArgs = @(
-    "--print",
-    "--allowedTools",
-    $AllowedTools
+Write-Host "Invoking Codex round $Round..."
+$codexArgs = @(
+    $AllowedMode,
+    "--cd",
+    $projectRootPath,
+    "--sandbox",
+    "workspace-write",
+    "--ask-for-approval",
+    "never",
+    "-"
 )
-$prompt | & $ClaudeCommand @claudeArgs
+$prompt | & $CodexCommand @codexArgs
 $exitCode = $LASTEXITCODE
 
 $historyDir = "$taskRoot/history/round-$Round"
@@ -185,11 +192,11 @@ Copy-IfExists -Source "$taskRoot/execution.md" -Destination $historyDir
 Copy-IfExists -Source "$taskRoot/review.md" -Destination $historyDir
 
 if ($exitCode -ne 0) {
-    throw "Claude command exited with code $exitCode. Check terminal output and $taskRoot/execution.md if it was created."
+    throw "Codex command exited with code $exitCode. Check terminal output and $taskRoot/execution.md if it was created."
 }
 
 if (-not (Test-Path -LiteralPath "$taskRoot/execution.md")) {
-    throw "Claude completed but did not create $taskRoot/execution.md."
+    throw "Codex completed but did not create $taskRoot/execution.md."
 }
 
-Write-Host "Claude round $Round complete for $taskRoot. Review $taskRoot/execution.md and changed files."
+Write-Host "Codex round $Round complete for $taskRoot. Review $taskRoot/execution.md and changed files."

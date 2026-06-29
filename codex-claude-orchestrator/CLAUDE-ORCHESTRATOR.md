@@ -1,37 +1,37 @@
-# AGENT.md - Codex Orchestrator Protocol (Codex-Led Mode)
+# CLAUDE-ORCHESTRATOR.md - Claude Orchestrator Protocol
 
-Codex is the entry point, planner, reviewer, and loop controller in the Codex-led mode of this dual-agent workflow. Claude is the executor.
+Claude is the entry point, planner, reviewer, and loop controller in the Claude-led mode of this dual-agent workflow. Codex is the executor.
 
-This file activates when Codex is the host surface. For Claude-led mode (Claude as host), see `CLAUDE-ORCHESTRATOR.md` and `CODEX.md`. When in Codex, do not activate the Claude-led path unless the user explicitly requests handoff documentation or wants to review the reverse-direction protocol files.
+This file activates when Claude is the host surface (e.g., a Claude conversation or Claude Code session) and the user explicitly requests the bidirectional Codex-Claude collaboration workflow. When Codex is the host, use `AGENT.md` instead.
 
 ## Activation Rules
 
-- Default to Codex-only behavior unless the user explicitly asks to use this skill or the Codex-Claude collaboration workflow.
-- Activate this workflow when the user says things like "use the collaboration skill", "use Codex-Claude skill", "Codex plans and Claude executes", "run this through Claude from Codex", or "run a PASS/REVISE loop".
+- Default to Claude-only behavior unless the user explicitly asks to use the Codex-Claude collaboration skill with Claude as the brain.
+- Activate this workflow when the user says things like "use the collaboration skill", "use Codex-Claude skill", "Claude plans and Codex executes", "run this through Codex from Claude", or "run a PASS/REVISE loop with Codex".
 - Do not activate this workflow for ordinary coding, ordinary review, Q&A, or any request where the user wants one agent only.
-- When activating for a new user request, Codex summarizes the request into a concise title before creating the request task root.
+- When activating for a new user request, Claude summarizes the request into a concise title before creating the request task root.
 
 ## Non-Negotiable Rules
 
-- Do not directly edit the target project's implementation files when this workflow is active. Claude performs implementation through `claude -p`.
-- Codex may create and update coordination files under the target project's `task/`, and may update skill files when the user is editing this skill itself.
-- Do not copy `AGENT.md`, `CLAUDE.md`, `config.json`, or `scripts/` into target projects. These runtime files live in the skill directory.
+- Do not directly edit the target project's implementation files when this workflow is active. Codex performs implementation through `codex exec`.
+- Claude may create and update coordination files under the target project's `task/`, and may update skill files when the user is editing this skill itself.
+- Do not copy `AGENT.md`, `CLAUDE.md`, `CLAUDE-ORCHESTRATOR.md`, `CODEX.md`, `config.json`, or `scripts/` into target projects. These runtime files live in the skill directory.
 - Every plan must be executable: include exact file paths, symbols/functions/components, intended edits, constraints, and validation commands.
 - Every review conclusion must start with exactly `PASS` or `REVISE`.
-- If the result is `REVISE`, write a concrete revised plan and run another Claude round, up to `config.maxIterations`.
+- If the result is `REVISE`, write a concrete revised plan and run another Codex round, up to `config.maxIterations`.
 - Preserve unrelated user changes. Never reset, checkout, or discard work unless the user explicitly asks.
 
-## Codex Responsibilities
+## Claude Responsibilities
 
 1. Understand the user request and inspect the repository.
 2. Create or select a request task root and write `<task-root>/plan.md` with a precise implementation plan.
 3. Assemble `<task-root>/context.md` from:
-   - skill-local `CLAUDE.md`
+   - skill-local `CODEX.md`
    - `<task-root>/plan.md`
    - skill-local `config.interactionLanguage`
    - skill-local `config.reportLanguage`
    - optional task-local context, constraints, and prior review notes
-4. Invoke Claude in non-interactive mode with the local CLI.
+4. Invoke Codex in non-interactive mode with `codex exec`.
 5. Read `<task-root>/execution.md`, inspect changed files and diffs, run or verify validation when useful.
 6. Review for completeness, correctness, consistency, side effects, validation quality, scope control, maintainability, and UI quality when relevant.
 7. Either report `PASS` to the user or revise `<task-root>/plan.md` and repeat.
@@ -40,13 +40,13 @@ This file activates when Codex is the host surface. For Claude-led mode (Claude 
 
 ```text
 User request
-  -> Codex inspects repo
-  -> Codex creates or selects <target-project>/task/requests/<request-id>/
-  -> Codex writes <task-root>/plan.md
-  -> Codex assembles <task-root>/context.md
-  -> Codex runs <skill-root>/scripts/invoke-claude.ps1 with -ProjectRoot <target-project>
-  -> Claude edits code and writes <task-root>/execution.md
-  -> Codex reviews execution.md + diff + artifacts
+  -> Claude inspects repo
+  -> Claude creates or selects <target-project>/task/requests/<request-id>/
+  -> Claude writes <task-root>/plan.md
+  -> Claude assembles <task-root>/context.md
+  -> Claude runs <skill-root>/scripts/invoke-codex.ps1 with -ProjectRoot <target-project>
+  -> Codex edits code and writes <task-root>/execution.md
+  -> Claude reviews execution.md + diff + artifacts
   -> PASS or REVISE
 ```
 
@@ -73,12 +73,28 @@ User request
 
 - Read `config.interactionLanguage`, `config.reportLanguage`, and `config.userFacingLanguage` before each round.
 - Default `interactionLanguage` to `reportLanguage` when missing. Default `reportLanguage` to `en-US` when missing. Default `userFacingLanguage` to `zh-CN` when missing.
-- Use `interactionLanguage` for `<task-root>/plan.md`, `<task-root>/context.md`, `<task-root>/review.md`, and Codex-to-Claude round instructions.
-- Use `reportLanguage` for Claude execution reports, change summaries, validation notes, UI notes, and deviation explanations.
+- Use `interactionLanguage` for `<task-root>/plan.md`, `<task-root>/context.md`, `<task-root>/review.md`, and Claude-to-Codex round instructions.
+- Use `reportLanguage` for Codex execution reports, change summaries, validation notes, UI notes, and deviation explanations.
 - Use `userFacingLanguage` for final replies and ordinary conversation with the user.
 - Do not switch execution artifacts to another language just because a previous terminal display showed mojibake. Fix the encoding/read path or use safe escaping while preserving the configured language.
 - Only override the configured language when the user explicitly asks for a one-off language override.
 - Keep fixed protocol tokens such as `PASS`, `REVISE`, `DONE`, `PARTIAL`, and `BLOCKED` unchanged.
+
+## Codex Invocation
+
+Prefer the wrapper script because it avoids command-line quoting problems, especially on PowerShell:
+
+```powershell
+<skill-root>/scripts/invoke-codex.ps1 -ProjectRoot <target-project> -Round <N>
+```
+
+Use `-SkipAssemble` only when `<task-root>/context.md` has already been manually prepared:
+
+```powershell
+<skill-root>/scripts/invoke-codex.ps1 -ProjectRoot <target-project> -Round 2 -RequestId <id> -SkipAssemble
+```
+
+If the user's `codex` command is backed by a different model provider, still use the same CLI entry point unless the user provides a different executable or flags.
 
 ## Task Directory Semantics
 
@@ -123,7 +139,7 @@ Issues:
 - ...
 
 Revised plan:
-- Exact file/symbol-level corrections for Claude.
+- Exact file/symbol-level corrections for Codex.
 
 Validation:
 - Commands/artifacts required next round.
@@ -133,12 +149,29 @@ Validation:
 
 - Prefer narrow revisions that fix blocking problems.
 - Do not add speculative improvements.
-- If the plan itself was wrong, rewrite `<task-root>/plan.md` rather than asking Claude to improvise.
-- If Claude changed files outside scope, instruct Claude to correct or report the mismatch without destructive cleanup unless explicitly safe.
+- If the plan itself was wrong, rewrite `<task-root>/plan.md` rather than asking Codex to improvise.
+- If Codex changed files outside scope, instruct Codex to correct or report the mismatch without destructive cleanup unless explicitly safe.
 
-## UI Review Rules
+## Safety
 
-When UI changes are involved, require Claude to provide:
+- Do not let Codex modify files outside the plan.
+- Do not let Codex commit, push, reset, or discard changes.
+- Do not allow global installs or secret access unless explicitly required and safe.
+- Preserve unrelated user changes.
+
+## Failure Classes
+
+- `PLAN_ERROR`: Claude's plan was incomplete, wrong, or impossible.
+- `EXECUTION_ERROR`: Codex did not follow the plan or produced incorrect changes.
+- `VALIDATION_ERROR`: build, tests, lint, or UI checks failed.
+- `ENVIRONMENT_ERROR`: local tools, dependencies, or credentials prevented execution.
+- `SCOPE_ERROR`: files outside the allowed scope were changed.
+
+Claude should use these classes in review notes when helpful.
+
+## UI Evidence
+
+When UI changes are involved, require Codex to provide:
 
 - Dev server command and URL.
 - Routes visited.
@@ -148,12 +181,4 @@ When UI changes are involved, require Claude to provide:
 - Failed network requests.
 - Steps used to reach important states such as modal open, empty state, loading, error, hover, or form validation.
 
-Codex should inspect screenshots with visual tools when available and mention layout, typography, spacing, color, responsiveness, and interaction states in the review.
-
-If the project is a static page, Codex may capture UI evidence with:
-
-```powershell
-<skill-root>/scripts/capture-ui.ps1 -ProjectRoot <target-project> -Round <N> -HtmlPath demo/index.html
-```
-
-The script uses installed Chrome or Edge through the Chrome DevTools Protocol. It requires PowerShell, Node 20+ for built-in WebSocket support, and Chrome or Edge. If no compatible browser exists, record that UI screenshots were not captured and continue with manual or code-level review.
+Claude should inspect screenshots with visual tools when available and mention layout, typography, spacing, color, responsiveness, and interaction states in the review.

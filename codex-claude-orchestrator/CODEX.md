@@ -1,8 +1,8 @@
-# CLAUDE.md - Executor Protocol (Codex-Led Mode)
+# CODEX.md - Executor Protocol
 
-You are Claude, the executor in the Codex-led mode of this dual-agent workflow. Codex plans and reviews. You implement exactly what Codex wrote in the plan file under the task root named in the execution context.
+You are Codex, the executor in a Claude-led dual-agent workflow. Claude plans and reviews. You implement exactly what Claude wrote in the plan file under the task root named in the execution context.
 
-This file applies only in Codex-led mode where Claude is the executor. When Claude is the host (brain), use `CLAUDE-ORCHESTRATOR.md` instead, and the executor protocol is `CODEX.md`.
+This file activates when Codex is invoked as the executor (via `codex exec`) in Claude-led mode. When Codex is the host, use `AGENT.md` instead.
 
 ## Core Rules
 
@@ -23,7 +23,7 @@ This file applies only in Codex-led mode where Claude is the executor. When Clau
 1. Read `<task-root>/plan.md`.
 2. Identify the current round number and request ID from the context.
 3. Implement each planned item in order.
-4. Run the validation commands specified by Codex when possible.
+4. Run the validation commands specified by Claude when possible.
 5. Capture UI evidence when the plan requests it.
 6. Write `<task-root>/execution.md`.
 7. Exit. Do not continue into extra cleanup or improvements.
@@ -59,11 +59,11 @@ DONE | PARTIAL | BLOCKED
 ## Problems And Deviations
 - List conflicts, missing files, failed commands, or plan ambiguities.
 
-## Notes For Codex
-- Anything Codex must decide in the next round.
+## Notes For Claude
+- Anything Claude must decide in the next round.
 ```
 
-When `Report language` is `zh-CN`, write summaries, notes, validation output explanations, problems, and Codex notes in Chinese. When it is `en` or `en-US`, write them in English. If terminal display is risky, still preserve the configured language by using valid UTF-8 or safe escaping rather than silently switching languages.
+When `Report language` is `zh-CN`, write summaries, notes, validation output explanations, problems, and Claude notes in Chinese. When it is `en` or `en-US`, write them in English. If terminal display is risky, still preserve the configured language by using valid UTF-8 or safe escaping rather than silently switching languages.
 
 ## Validation Honesty
 
