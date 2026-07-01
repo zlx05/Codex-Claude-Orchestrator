@@ -150,6 +150,10 @@ When UI changes are involved, require Claude to provide:
 
 Codex should inspect screenshots with visual tools when available and mention layout, typography, spacing, color, responsiveness, and interaction states in the review.
 
+## CLI Resolution
+
+Use `scripts/invoke-claude.ps1` for execution. The wrapper automatically resolves `claude` from PATH, common command variants, and best-effort VS Code / VS Code Insiders extension locations. Manual `config.claudeCommand` or `$env:CLAUDE_COMMAND` is a fallback for unusual environments, not a normal setup step.
+
 If the project is a static page, Codex may capture UI evidence with:
 
 ```powershell

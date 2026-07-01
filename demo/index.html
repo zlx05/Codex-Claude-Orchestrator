@@ -1,184 +1,2408 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Codex + Claude / Dual-Agent Orchestrator</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="description" content="Codex-Claude Orchestrator 将 Codex 和 Claude 组成双向协作的 AI 工程团队，通过可审计的规划、执行、审查闭环，让每次代码改动都有据可查。">
+  <title>Codex-Claude Orchestrator | 双 AI 协作工程流</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-alt: #f1f5f9;
+      --line: #e2e8f0;
+      --line-strong: #cbd5e1;
+      --text: #0f172a;
+      --text-secondary: #334155;
+      --muted: #64748b;
+      --cyan: #06b6d4;
+      --cyan-strong: #0891b2;
+      --cyan-glow: rgba(6, 182, 212, 0.32);
+      --lime: #84cc16;
+      --lime-strong: #65a30d;
+      --coral: #fb923c;
+      --coral-soft: #fed7aa;
+      --claude-accent: #7c3aed;
+      --claude-glow: rgba(124, 58, 237, 0.24);
+      --codex-accent: #0ea5e9;
+      --pink: #ec4899;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --radius-xs: 8px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+      --font-sans: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+      color-scheme: light;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* ---------- canvas layer ---------- */
+    .canvas-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .canvas-layer canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ---------- floating chips ---------- */
+    .floating-chips {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .float-chip {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      animation: chip-float 8s ease-in-out infinite;
+      opacity: 0.55;
+      backdrop-filter: blur(4px);
+    }
+
+    .float-chip--cyan {
+      background: rgba(6, 182, 212, 0.1);
+      color: var(--cyan-strong);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
+
+    .float-chip--lime {
+      background: rgba(132, 204, 22, 0.1);
+      color: var(--lime-strong);
+      border: 1px solid rgba(132, 204, 22, 0.25);
+    }
+
+    .float-chip--coral {
+      background: rgba(251, 146, 60, 0.1);
+      color: #c2410c;
+      border: 1px solid rgba(251, 146, 60, 0.25);
+    }
+
+    .float-chip--pink {
+      background: rgba(236, 72, 153, 0.08);
+      color: #be185d;
+      border: 1px solid rgba(236, 72, 153, 0.2);
+    }
+
+    @keyframes chip-float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      25% { transform: translateY(-14px) rotate(1deg); }
+      50% { transform: translateY(-6px) rotate(-0.5deg); }
+      75% { transform: translateY(-18px) rotate(0.5deg); }
+    }
+
+    @keyframes chip-float-alt {
+      0%, 100% { transform: translateY(0) translateX(0); }
+      33% { transform: translateY(-10px) translateX(8px); }
+      66% { transform: translateY(-16px) translateX(-6px); }
+    }
+
+    /* ---------- sections ---------- */
+    .section {
+      position: relative;
+      z-index: 1;
+      padding: 80px clamp(16px, 5vw, 80px);
+      isolation: isolate;
+    }
+
+    .section--hero {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding-top: 60px;
+      padding-bottom: 60px;
+    }
+
+    .section--dark {
+      background: #0b1120;
+      color: #f1f5f9;
+    }
+
+    .section--dark .section__label {
+      color: #94a3b8;
+    }
+
+    .section--dark .section__title {
+      color: #f8fafc;
+    }
+
+    .section--dark .section__lead {
+      color: #cbd5e1;
+    }
+
+    .container {
+      width: min(1100px, 100%);
+      margin: 0 auto;
+    }
+
+    .section__label {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--cyan-strong);
+      background: rgba(6, 182, 212, 0.08);
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    .section__title {
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      font-weight: 750;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      margin-bottom: 14px;
+    }
+
+    .section__lead {
+      font-size: clamp(0.9rem, 1.2vw, 1rem);
+      color: var(--text-secondary);
+      line-height: 1.6;
+      max-width: 600px;
+    }
+
+    .section--dark .section__lead {
+      color: #cbd5e1;
+    }
+
+    .section--center {
+      text-align: center;
+    }
+
+    .section--center .section__lead {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ---------- hero ---------- */
+    .hero__recording-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--coral);
+      background: rgba(251, 146, 60, 0.1);
+      border: 1px solid rgba(251, 146, 60, 0.2);
+      margin-bottom: 24px;
+      animation: badge-pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes badge-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.3); }
+      50% { box-shadow: 0 0 0 10px rgba(251, 146, 60, 0); }
+    }
+
+    .hero__recording-badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--coral);
+      animation: dot-blink 1s ease-in-out infinite;
+    }
+
+    @keyframes dot-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .hero__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--surface);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+    }
+
+    .hero__badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--lime);
+      box-shadow: 0 0 8px var(--lime);
+    }
+
+    .hero__title {
+      font-size: clamp(2.2rem, 7vw, 4.8rem);
+      font-weight: 850;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .hero__title-line {
+      display: block;
+    }
+
+    .hero__title-accent {
+      background: linear-gradient(135deg, var(--cyan) 0%, #22d3ee 40%, var(--codex-accent) 70%, var(--claude-accent) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero__claim {
+      font-size: clamp(1.25rem, 3.5vw, 2rem);
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 8px;
+      line-height: 1.22;
+      letter-spacing: -0.01em;
+    }
+
+    .hero__claim-accent {
+      background: linear-gradient(135deg, var(--lime-strong) 0%, var(--cyan-strong) 60%, #0e7490 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero__claim-sub {
+      font-size: clamp(0.88rem, 1.3vw, 1rem);
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .hero__desc {
+      font-size: clamp(0.85rem, 1.1vw, 0.95rem);
+      color: var(--muted);
+      max-width: 480px;
+      margin: 0 auto 24px;
+      line-height: 1.55;
+    }
+
+    .hero__github-url {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: clamp(0.78rem, 1.2vw, 0.9rem);
+      font-weight: 600;
+      color: var(--cyan-strong);
+      background: rgba(6, 182, 212, 0.06);
+      padding: 8px 20px;
+      border-radius: 999px;
+      border: 1px solid rgba(6, 182, 212, 0.18);
+      margin-bottom: 28px;
+      word-break: break-all;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      text-decoration: none;
+      transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .hero__github-url:hover {
+      background: rgba(6, 182, 212, 0.12);
+      border-color: var(--cyan);
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.14);
+    }
+
+    .hero__actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 46px;
+      padding: 0 22px;
+      border-radius: 999px;
+      font-size: 0.92rem;
+      font-weight: 650;
+      font-family: var(--font-sans);
+      text-decoration: none;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+      border: 1px solid transparent;
+    }
+
+    .btn:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 3px;
+    }
+
+    .btn--primary {
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--cyan-strong), #0e7490);
+      border-color: transparent;
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.26);
+    }
+
+    .btn--primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(6, 182, 212, 0.34);
+    }
+
+    .btn--ghost {
+      color: var(--text-secondary);
+      background: var(--surface);
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn--ghost:hover {
+      border-color: var(--cyan);
+      color: var(--cyan-strong);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn--ghost-light {
+      color: #cbd5e1;
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(148, 163, 184, 0.24);
+    }
+
+    .btn--ghost-light:hover {
+      border-color: rgba(6, 182, 212, 0.5);
+      color: #ffffff;
+    }
+
+    /* ---------- score badge (game-like) ---------- */
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: var(--radius-xs);
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 12px;
+    }
+
+    .score-badge__icon {
+      font-size: 1rem;
+    }
+
+    .score-badge__val {
+      color: var(--cyan-strong);
+    }
+
+    /* ---------- cards ---------- */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: clamp(18px, 2.5vw, 28px);
+      transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--line-strong);
+    }
+
+    .card--dark {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(148, 163, 184, 0.14);
+      color: #f1f5f9;
+    }
+
+    .card--dark:hover {
+      border-color: rgba(6, 182, 212, 0.3);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .card-grid {
+      display: grid;
+      gap: clamp(14px, 2vw, 20px);
+      margin-top: 36px;
+    }
+
+    .card-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .card__icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 14px;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .card__icon--cyan {
+      background: rgba(6, 182, 212, 0.1);
+      color: var(--cyan-strong);
+    }
+
+    .card__icon--lime {
+      background: rgba(132, 204, 22, 0.12);
+      color: var(--lime-strong);
+    }
+
+    .card__icon--claude {
+      background: rgba(124, 58, 237, 0.1);
+      color: var(--claude-accent);
+    }
+
+    .card__icon--codex {
+      background: rgba(14, 165, 233, 0.1);
+      color: var(--codex-accent);
+    }
+
+    .card__icon--coral {
+      background: rgba(251, 146, 60, 0.1);
+      color: #c2410c;
+    }
+
+    .card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      font-size: 0.86rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    .card--dark p {
+      color: #94a3b8;
+    }
+
+    /* ---------- pain chips (game-like badges) ---------- */
+    .pain-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: clamp(12px, 2vw, 18px);
+      margin-top: 36px;
+    }
+
+    .pain-chip {
+      position: relative;
+      padding: 22px 16px;
+      text-align: center;
+      border-radius: var(--radius);
+      background: var(--surface);
+      border: 2px solid var(--line);
+      box-shadow: var(--shadow-sm);
+      transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+    }
+
+    .pain-chip:hover {
+      transform: translateY(-4px);
+      border-color: var(--coral);
+      box-shadow: 0 8px 24px rgba(251, 146, 60, 0.12);
+    }
+
+    .pain-chip__num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .pain-chip__num--1 { background: #fef2f2; color: #dc2626; }
+    .pain-chip__num--2 { background: #fff7ed; color: #ea580c; }
+    .pain-chip__num--3 { background: #fefce8; color: #ca8a04; }
+    .pain-chip__num--4 { background: #ecfeff; color: #0891b2; }
+    .pain-chip__num--5 { background: #f5f3ff; color: #7c3aed; }
+
+    .pain-chip h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+
+    .pain-chip p {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    /* ---------- workflow ---------- */
+    .workflow-steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: clamp(14px, 2vw, 20px);
+      margin-top: 36px;
+    }
+
+    .step-card {
+      position: relative;
+      padding: 24px 18px;
+      text-align: left;
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 500ms ease, transform 500ms ease;
+    }
+
+    .step-card.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .step-card:nth-child(2) { transition-delay: 80ms; }
+    .step-card:nth-child(3) { transition-delay: 160ms; }
+    .step-card:nth-child(4) { transition-delay: 240ms; }
+
+    .step-card__num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), #22d3ee);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    /* ---------- modes ---------- */
+    .mode-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .mode-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .mode-card--codex::before {
+      background: linear-gradient(90deg, var(--codex-accent), var(--cyan));
+    }
+
+    .mode-card--claude::before {
+      background: linear-gradient(90deg, var(--claude-accent), #a78bfa);
+    }
+
+    .mode-card__roles {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    .mode-card__role {
+      flex: 1;
+      text-align: center;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.84rem;
+      font-weight: 650;
+    }
+
+    .mode-card__role--brain {
+      background: rgba(6, 182, 212, 0.08);
+      color: var(--cyan-strong);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .mode-card--claude .mode-card__role--brain {
+      background: rgba(124, 58, 237, 0.08);
+      color: var(--claude-accent);
+      border-color: rgba(124, 58, 237, 0.2);
+    }
+
+    .mode-card__role--hands {
+      background: rgba(100, 116, 139, 0.06);
+      color: var(--text-secondary);
+      border: 1px solid var(--line);
+    }
+
+    .mode-card__arrow {
+      color: var(--muted);
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .mode-card__cmd {
+      display: block;
+      margin-top: 14px;
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      background: #0f172a;
+      color: #7dd3fc;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .mode-card__cmd .token {
+      color: #a5b4fc;
+    }
+
+    /* ---------- round demo ---------- */
+    .round-demo {
+      margin-top: 36px;
+    }
+
+    .round-timeline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+    }
+
+    .round-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      position: relative;
+    }
+
+    .round-node__dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--line-strong);
+      transition: background 300ms ease, box-shadow 300ms ease, transform 300ms ease;
+    }
+
+    .round-node__dot--active {
+      background: var(--cyan);
+      box-shadow: 0 0 14px var(--cyan-glow);
+      transform: scale(1.35);
+    }
+
+    .round-node__dot--done {
+      background: var(--lime);
+      box-shadow: 0 0 10px rgba(132, 204, 22, 0.4);
+    }
+
+    .round-node__dot--rejected {
+      background: #f59e0b;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+    }
+
+    .round-node__label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .round-connector {
+      width: clamp(24px, 4vw, 48px);
+      height: 2px;
+      background: var(--line);
+      margin: 0 4px;
+      margin-bottom: 16px;
+      transition: background 300ms ease;
+    }
+
+    .round-connector--active {
+      background: var(--cyan);
+    }
+
+    .round-connector--done {
+      background: var(--lime);
+    }
+
+    .round-panel {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .round-panel__status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .round-panel__status--pass {
+      background: rgba(132, 204, 22, 0.1);
+      color: var(--lime-strong);
+      border: 1px solid rgba(132, 204, 22, 0.25);
+    }
+
+    .round-panel__status--revise {
+      background: rgba(245, 158, 11, 0.1);
+      color: #d97706;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .round-panel__status--review {
+      background: rgba(6, 182, 212, 0.08);
+      color: var(--cyan-strong);
+      border: 1px solid rgba(6, 182, 212, 0.22);
+    }
+
+    .round-panel__msg {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+
+    .round-panel__actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn--pass {
+      color: #ffffff;
+      background: var(--lime-strong);
+      border-color: transparent;
+      box-shadow: 0 6px 18px rgba(132, 204, 22, 0.26);
+    }
+
+    .btn--pass:hover {
+      box-shadow: 0 10px 24px rgba(132, 204, 22, 0.36);
+    }
+
+    .btn--revise {
+      color: #ffffff;
+      background: #f59e0b;
+      border-color: transparent;
+      box-shadow: 0 6px 18px rgba(245, 158, 11, 0.26);
+    }
+
+    .btn--revise:hover {
+      box-shadow: 0 10px 24px rgba(245, 158, 11, 0.36);
+    }
+
+    .btn--reset {
+      color: var(--text-secondary);
+      background: var(--surface);
+      border-color: var(--line-strong);
+    }
+
+    /* ---------- install ---------- */
+    .install-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+      gap: clamp(16px, 2.5vw, 28px);
+      margin-top: 32px;
+      align-items: start;
+    }
+
+    .dir-tree {
+      padding: 20px 22px;
+      overflow-x: auto;
+    }
+
+    .dir-tree pre {
+      margin: 0;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: clamp(0.74rem, 0.9vw, 0.84rem);
+      line-height: 1.7;
+    }
+
+    .dir-tree .dim {
+      color: var(--muted);
+    }
+
+    .install-steps {
+      display: grid;
+      gap: 12px;
+    }
+
+    .install-step {
+      padding: 18px 20px;
+    }
+
+    .install-step__num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), #22d3ee);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .cta-section {
+      text-align: center;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+    }
+
+    .cta-section__url {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: clamp(0.78rem, 1vw, 0.9rem);
+      color: var(--cyan-strong);
+      margin-bottom: 18px;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      text-decoration: none;
+    }
+
+    .cta-section__url:hover {
+      text-decoration: underline;
+    }
+
+    /* ---------- footer ---------- */
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* ---------- reveal ---------- */
+    .reveal {
+      opacity: 0;
+      transform: translateY(26px);
+      transition: opacity 560ms ease, transform 560ms ease;
+    }
+
+    .reveal.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ---------- reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+
+      .reveal,
+      .step-card {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+
+      .float-chip {
+        display: none;
+      }
+
+      .hero__recording-badge-dot {
+        animation: none;
+        opacity: 1;
+      }
+    }
+
+    /* ---------- workflow timeline ---------- */
+    .workflow-timeline {
+      position: relative;
+      max-width: 640px;
+      margin: 40px auto 0;
+      padding-left: 28px;
+    }
+
+    .workflow-timeline::before {
+      content: "";
+      position: absolute;
+      left: 11px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--cyan) 0%, var(--claude-accent) 40%, var(--lime-strong) 70%, var(--coral) 100%);
+      border-radius: 1px;
+      opacity: 0.55;
+    }
+
+    .workflow-timeline__item {
+      position: relative;
+      margin-bottom: 20px;
+      opacity: 0;
+      transform: translateX(-20px);
+      transition: opacity 480ms ease, transform 480ms ease;
+    }
+
+    .workflow-timeline__item.revealed {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .workflow-timeline__item:nth-child(1) { transition-delay: 0ms; }
+    .workflow-timeline__item:nth-child(2) { transition-delay: 60ms; }
+    .workflow-timeline__item:nth-child(3) { transition-delay: 120ms; }
+    .workflow-timeline__item:nth-child(4) { transition-delay: 180ms; }
+    .workflow-timeline__item:nth-child(5) { transition-delay: 240ms; }
+    .workflow-timeline__item:nth-child(6) { transition-delay: 300ms; }
+    .workflow-timeline__item:nth-child(7) { transition-delay: 360ms; }
+
+    .workflow-timeline__dot {
+      position: absolute;
+      left: -28px;
+      top: 16px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--cyan);
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.25);
+      z-index: 1;
+    }
+
+    .workflow-timeline__item--user .workflow-timeline__dot {
+      border-color: var(--coral);
+      box-shadow: 0 0 8px rgba(251, 146, 60, 0.3);
+    }
+
+    .workflow-timeline__item--brain .workflow-timeline__dot {
+      border-color: var(--claude-accent);
+      box-shadow: 0 0 8px rgba(124, 58, 237, 0.25);
+    }
+
+    .workflow-timeline__item--hands .workflow-timeline__dot {
+      border-color: var(--lime-strong);
+      box-shadow: 0 0 8px rgba(132, 204, 22, 0.3);
+    }
+
+    .workflow-timeline__item--review .workflow-timeline__dot {
+      border-color: var(--coral);
+      background: var(--coral);
+      box-shadow: 0 0 12px rgba(251, 146, 60, 0.4);
+      animation: badge-pulse 2.4s ease-in-out infinite;
+    }
+
+    .workflow-timeline__card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 16px 18px;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .workflow-timeline__card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .workflow-timeline__header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .workflow-timeline__step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .workflow-timeline__item--user .workflow-timeline__step-num { background: var(--coral); }
+    .workflow-timeline__item--brain .workflow-timeline__step-num { background: var(--claude-accent); }
+    .workflow-timeline__item--hands .workflow-timeline__step-num { background: var(--lime-strong); }
+    .workflow-timeline__item--review .workflow-timeline__step-num { background: var(--coral); }
+
+    .workflow-timeline__role-tag {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .workflow-timeline__item--user .workflow-timeline__role-tag {
+      background: rgba(251, 146, 60, 0.1);
+      color: #c2410c;
+    }
+
+    .workflow-timeline__item--brain .workflow-timeline__role-tag {
+      background: rgba(124, 58, 237, 0.08);
+      color: var(--claude-accent);
+    }
+
+    .workflow-timeline__item--hands .workflow-timeline__role-tag {
+      background: rgba(132, 204, 22, 0.1);
+      color: var(--lime-strong);
+    }
+
+    .workflow-timeline__item--review .workflow-timeline__role-tag {
+      background: rgba(245, 158, 11, 0.1);
+      color: #d97706;
+    }
+
+    .workflow-timeline__title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.35;
+    }
+
+    .workflow-timeline__desc {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    .workflow-timeline__file-ref {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 2px 8px;
+      border-radius: var(--radius-xs);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--cyan-strong);
+      background: rgba(6, 182, 212, 0.06);
+      border: 1px solid rgba(6, 182, 212, 0.14);
+    }
+
+    .workflow-timeline__verdict {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .workflow-timeline__pass-badge,
+    .workflow-timeline__revise-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 12px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .workflow-timeline__pass-badge {
+      background: rgba(132, 204, 22, 0.1);
+      color: var(--lime-strong);
+      border: 1px solid rgba(132, 204, 22, 0.25);
+    }
+
+    .workflow-timeline__revise-badge {
+      background: rgba(245, 158, 11, 0.1);
+      color: #d97706;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    /* ---------- file map ---------- */
+    .file-map {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      max-width: 680px;
+      margin: 36px auto 0;
+    }
+
+    .file-map__card {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-sm);
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .file-map__card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--line-strong);
+    }
+
+    .file-map__icon {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-xs);
+      font-size: 0.9rem;
+    }
+
+    .file-map__icon--brain {
+      background: rgba(124, 58, 237, 0.08);
+      color: var(--claude-accent);
+    }
+
+    .file-map__icon--hands {
+      background: rgba(132, 204, 22, 0.1);
+      color: var(--lime-strong);
+    }
+
+    .file-map__icon--both {
+      background: rgba(6, 182, 212, 0.08);
+      color: var(--cyan-strong);
+    }
+
+    .file-map__body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-map__path {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 650;
+      color: var(--text);
+      line-height: 1.4;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      margin-bottom: 4px;
+    }
+
+    .file-map__io {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 0.72rem;
+      margin-bottom: 4px;
+    }
+
+    .file-map__io-label {
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .file-map__io-writer {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 0.66rem;
+      font-weight: 650;
+    }
+
+    .file-map__io-writer--brain {
+      background: rgba(124, 58, 237, 0.08);
+      color: var(--claude-accent);
+    }
+
+    .file-map__io-writer--hands {
+      background: rgba(132, 204, 22, 0.1);
+      color: var(--lime-strong);
+    }
+
+    .file-map__io-writer--user {
+      background: rgba(251, 146, 60, 0.08);
+      color: #c2410c;
+    }
+
+    .file-map__io-reader {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 0.66rem;
+      font-weight: 650;
+      background: rgba(100, 116, 139, 0.06);
+      color: var(--text-secondary);
+    }
+
+    .file-map__desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .file-map__note {
+      margin-top: 14px;
+      padding: 12px 16px;
+      background: rgba(6, 182, 212, 0.04);
+      border: 1px dashed rgba(6, 182, 212, 0.18);
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+      text-align: center;
+    }
+
+    .section--dark .file-map__card {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(148, 163, 184, 0.14);
+      color: #f1f5f9;
+    }
+
+    .section--dark .file-map__card:hover {
+      border-color: rgba(6, 182, 212, 0.3);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .section--dark .file-map__path { color: #f1f5f9; }
+    .section--dark .file-map__desc { color: #94a3b8; }
+    .section--dark .file-map__io-label { color: #94a3b8; }
+    .section--dark .file-map__io-reader { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; }
+    .section--dark .file-map__note { background: rgba(6, 182, 212, 0.06); border-color: rgba(6, 182, 212, 0.18); color: #cbd5e1; }
+
+    .section--dark .workflow-timeline__card {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(148, 163, 184, 0.14);
+      color: #f1f5f9;
+    }
+
+    .section--dark .workflow-timeline__title { color: #f8fafc; }
+    .section--dark .workflow-timeline__desc { color: #94a3b8; }
+
+    /* ---------- round explainer ---------- */
+    .round-explainer {
+      max-width: 600px;
+      margin: 28px auto 0;
+      text-align: left;
+    }
+
+    .round-explainer__grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .round-explainer__chip {
+      text-align: center;
+      padding: 14px 10px;
+      border-radius: var(--radius-sm);
+      background: rgba(6, 182, 212, 0.06);
+      border: 1px solid rgba(6, 182, 212, 0.12);
+    }
+
+    .round-explainer__chip h4 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--cyan-strong);
+    }
+
+    .round-explainer__chip p {
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    .round-explainer__detail {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-top: 10px;
+      padding: 14px 18px;
+      background: rgba(6, 182, 212, 0.04);
+      border-left: 3px solid var(--cyan);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .round-explainer__detail strong {
+      color: var(--text);
+    }
+
+    .section--dark .round-explainer__chip {
+      background: rgba(6, 182, 212, 0.08);
+      border-color: rgba(6, 182, 212, 0.16);
+    }
+
+    .section--dark .round-explainer__chip h4 { color: #22d3ee; }
+    .section--dark .round-explainer__chip p { color: #94a3b8; }
+    .section--dark .round-explainer__detail {
+      background: rgba(6, 182, 212, 0.06);
+      border-left-color: var(--cyan);
+      color: #cbd5e1;
+    }
+    .section--dark .round-explainer__detail strong { color: #f8fafc; }
+
+    /* ---------- responsive ---------- */
+    @media (max-width: 980px) {
+      .pain-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .card-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workflow-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .install-layout { grid-template-columns: 1fr; }
+      .round-explainer__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .file-map { max-width: 100%; }
+    }
+
+    @media (max-width: 680px) {
+      .section { padding: 56px 16px; }
+      .section--hero { padding-top: 48px; padding-bottom: 48px; }
+
+      .pain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+      .hero__title {
+        font-size: clamp(2rem, 9vw, 2.8rem);
+        line-height: 1.12;
+      }
+
+      .hero__github-url {
+        font-size: 0.74rem;
+        padding: 7px 14px;
+      }
+
+      .card-grid--2,
+      .card-grid--3,
+      .card-grid--4,
+      .workflow-steps {
+        grid-template-columns: 1fr;
+      }
+
+      .hero__actions { flex-direction: column; align-items: stretch; }
+      .btn { width: 100%; }
+
+      .round-timeline { gap: 0; justify-content: center; }
+      .round-connector { width: 20px; }
+      .round-node__label { font-size: 0.62rem; }
+
+      .mode-card__roles { flex-direction: column; }
+      .mode-card__arrow { transform: rotate(90deg); }
+
+      .dir-tree pre { font-size: 0.72rem; }
+
+      .float-chip { font-size: 0.65rem; padding: 4px 10px; }
+
+      .workflow-timeline { padding-left: 22px; max-width: 100%; }
+      .workflow-timeline__item { margin-bottom: 16px; }
+      .workflow-timeline__card { padding: 14px; }
+      .workflow-timeline__dot { left: -22px; width: 11px; height: 11px; top: 14px; }
+      .workflow-timeline::before { left: 9px; }
+      .workflow-timeline__title { font-size: 0.88rem; }
+      .workflow-timeline__desc { font-size: 0.78rem; }
+
+      .round-explainer__grid { grid-template-columns: 1fr; gap: 8px; }
+      .round-explainer__detail { font-size: 0.78rem; padding: 12px 14px; }
+
+      .file-map__card { padding: 14px; gap: 10px; }
+      .file-map__path { font-size: 0.72rem; }
+      .file-map__desc { font-size: 0.74rem; }
+    }
+
+    @media (max-width: 430px) {
+      .section { padding: 48px 14px; }
+      .section--hero { padding-top: 40px; padding-bottom: 40px; min-height: 100dvh; }
+
+      .hero__title { font-size: clamp(1.9rem, 10vw, 2.4rem); }
+      .hero__claim { font-size: 0.95rem; }
+      .hero__claim-sub { font-size: 0.84rem; }
+      .hero__desc { font-size: 0.82rem; }
+      .hero__github-url { font-size: 0.7rem; padding: 6px 12px; }
+
+      .pain-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .pain-chip { padding: 16px 12px; }
+      .pain-chip h3 { font-size: 0.86rem; }
+      .pain-chip p { font-size: 0.76rem; }
+
+      .card { padding: 16px; }
+      .card h3 { font-size: 0.95rem; }
+      .card p { font-size: 0.8rem; }
+
+      .round-timeline { gap: 0; }
+      .round-connector { width: 14px; margin: 0 2px; margin-bottom: 14px; }
+      .round-node__label { font-size: 0.58rem; }
+      .round-node__dot { width: 10px; height: 10px; }
+      .round-panel { padding: 18px; }
+
+      .section__title { font-size: 1.4rem; }
+      .section__lead { font-size: 0.84rem; }
+
+      .workflow-timeline { padding-left: 20px; }
+      .workflow-timeline::before { left: 8px; }
+      .workflow-timeline__dot { left: -20px; width: 10px; height: 10px; top: 12px; }
+      .workflow-timeline__card { padding: 12px 14px; border-radius: var(--radius-sm); }
+      .workflow-timeline__header { gap: 6px; }
+      .workflow-timeline__title { font-size: 0.84rem; }
+      .workflow-timeline__desc { font-size: 0.76rem; }
+      .workflow-timeline__file-ref { font-size: 0.66rem; }
+      .workflow-timeline__verdict { gap: 8px; }
+
+      .file-map__card { padding: 12px 14px; gap: 8px; }
+      .file-map__icon { width: 30px; height: 30px; font-size: 0.8rem; }
+      .file-map__path { font-size: 0.7rem; }
+      .file-map__io { font-size: 0.66rem; gap: 4px; }
+      .file-map__desc { font-size: 0.72rem; }
+      .file-map__note { font-size: 0.74rem; padding: 10px 12px; }
+    }
+
+    @media (max-width: 390px) {
+      .hero__title { font-size: 1.8rem; }
+      .pain-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .round-connector { width: 10px; }
+      .workflow-timeline { padding-left: 16px; }
+      .workflow-timeline__dot { left: -16px; width: 8px; height: 8px; }
+      .workflow-timeline::before { left: 6px; }
+      .workflow-timeline__card { padding: 10px 12px; }
+      .workflow-timeline__title { font-size: 0.8rem; }
+      .workflow-timeline__desc { font-size: 0.74rem; }
+      .file-map__card { padding: 10px 12px; }
+      .file-map__path { font-size: 0.68rem; }
+    }
+  </style>
 </head>
 <body>
-  <canvas id="particles" aria-hidden="true"></canvas>
-
-  <div class="hud" id="hud" role="status" aria-live="polite">
-    <span class="hud-label">Round</span>
-    <span class="hud-value" id="hud-round">1</span>
-    <span class="hud-sep"></span>
-    <span class="hud-label">Status</span>
-    <span class="hud-value" id="hud-status">ACTIVE</span>
+  <!-- particle canvas layer -->
+  <div class="canvas-layer" id="particle-layer" aria-hidden="true">
+    <canvas id="particle-canvas"></canvas>
   </div>
 
-  <header class="hero">
-    <div class="hero-badges">
-      <span class="badge badge-codex">Brain</span>
-      <span class="badge badge-claude">Hands</span>
+  <!-- floating status chips -->
+  <div class="floating-chips" id="floating-chips" aria-hidden="true">
+    <span class="float-chip float-chip--cyan" style="top:15%;left:5%;animation-delay:0s;">plan.md ✓</span>
+    <span class="float-chip float-chip--lime" style="top:25%;right:8%;animation-delay:1.2s;">PASS</span>
+    <span class="float-chip float-chip--coral" style="top:55%;left:3%;animation-delay:2.5s;">exec.md</span>
+    <span class="float-chip float-chip--pink" style="top:70%;right:5%;animation-delay:3.8s;">review.md</span>
+    <span class="float-chip float-chip--cyan" style="top:80%;left:12%;animation-delay:5s;">Round 1</span>
+    <span class="float-chip float-chip--lime" style="top:35%;left:85%;animation-delay:6.2s;">claude -p</span>
+    <span class="float-chip float-chip--coral" style="top:60%;right:15%;animation-delay:7.5s;">codex exec</span>
+  </div>
+
+  <!-- ==================== HERO ==================== -->
+  <section class="section section--hero" id="hero">
+    <div class="container">
+      <div class="hero__badge">
+        <span class="hero__badge-dot" aria-hidden="true"></span>
+        Codex-Claude Orchestrator
+      </div>
+
+      <h1 class="hero__title">
+        <span class="hero__title-line">让 <span class="hero__title-accent">Codex</span> 和 <span class="hero__title-accent">Claude</span></span>
+        <span class="hero__title-line">组成一个工程团队</span>
+      </h1>
+
+      <p class="hero__claim">
+        <span class="hero__claim-accent">可审计的 AI 工程闭环</span>
+      </p>
+      <p class="hero__claim-sub">Plan → Execute → Review，每次改动都有据可查</p>
+
+      <!-- visible GitHub URL as plain text -->
+      <a class="hero__github-url" href="https://github.com/zlx05/Codex-Claude-Orchestrator" target="_blank" rel="noopener">github.com/zlx05/Codex-Claude-Orchestrator</a>
+
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="https://github.com/zlx05/Codex-Claude-Orchestrator" target="_blank" rel="noopener">
+          在 GitHub 上查看
+        </a>
+        <a class="btn btn--ghost" href="#pain-points">看看它解决什么</a>
+      </div>
     </div>
-    <h1 class="hero-title">
-      <span class="token token-codex">Codex</span>
-      <span class="hero-connector" aria-hidden="true">+</span>
-      <span class="token token-claude">Claude</span>
-    </h1>
-    <p class="hero-tagline">Codex plans and reviews. Claude implements and reports. They loop until the gate says PASS.</p>
-  </header>
+  </section>
 
-  <main>
-    <section class="board" id="board" aria-label="Orchestration loop">
-      <div class="section-head">
-        <h2 class="section-label">Orchestration Loop</h2>
-        <span class="section-badge" id="board-badge">Round 1 active</span>
-      </div>
-      <div class="board-track">
-        <div class="board-node" data-step="plan" tabindex="0" role="button" aria-pressed="false">
-          <div class="node-icon" aria-hidden="true">1</div>
-          <div class="node-title">Codex Plans</div>
-          <div class="node-desc">Receives request, writes plan.md</div>
-        </div>
-        <div class="board-connector" aria-hidden="true">
-          <svg class="connector-svg" viewBox="0 0 60 12" preserveAspectRatio="none">
-            <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-          </svg>
-        </div>
-        <div class="board-node" data-step="build" tabindex="0" role="button" aria-pressed="false">
-          <div class="node-icon" aria-hidden="true">2</div>
-          <div class="node-title">Claude Builds</div>
-          <div class="node-desc">Implements plan, writes report</div>
-        </div>
-        <div class="board-connector" aria-hidden="true">
-          <svg class="connector-svg" viewBox="0 0 60 12" preserveAspectRatio="none">
-            <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-          </svg>
-        </div>
-        <div class="board-node" data-step="review" tabindex="0" role="button" aria-pressed="false">
-          <div class="node-icon" aria-hidden="true">3</div>
-          <div class="node-title">Codex Reviews</div>
-          <div class="node-desc">Inspects diff, tests, evidence</div>
-        </div>
-        <div class="board-connector" aria-hidden="true">
-          <svg class="connector-svg" viewBox="0 0 60 12" preserveAspectRatio="none">
-            <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
-          </svg>
-        </div>
-        <div class="board-node board-node-gate" data-step="gate" tabindex="0" role="button" aria-pressed="false">
-          <div class="node-icon gate-icon" id="gate-icon" aria-hidden="true">?</div>
-          <div class="node-title">Gate</div>
-          <div class="node-desc" id="gate-desc">Awaiting review</div>
-        </div>
-      </div>
-      <div class="board-progress" aria-hidden="true">
-        <div class="progress-track">
-          <div class="progress-fill" id="progress-fill"></div>
-        </div>
-        <div class="progress-pips">
-          <span class="pip pip-done" data-pip="1"></span>
-          <span class="pip" data-pip="2"></span>
-          <span class="pip" data-pip="3"></span>
-          <span class="pip pip-gate" data-pip="4"></span>
-        </div>
-      </div>
-    </section>
+  <!-- ==================== PAIN POINTS ==================== -->
+  <section class="section section--center" id="pain-points">
+    <div class="container">
+      <span class="section__label">痛点</span>
+      <h2 class="section__title">单 AI 编程的五个真实问题</h2>
+      <p class="section__lead">一个模型独立完成复杂任务，缺约束、缺审查、缺记录。</p>
 
-    <section class="inspector" id="inspector" aria-label="Step inspector">
-      <div class="section-head">
-        <h2 class="section-label">Inspector</h2>
-        <span class="inspector-badge" id="inspector-badge">Ready</span>
-      </div>
-      <div class="inspector-body" id="inspector-body">
-        <div class="inspector-default">
-          <div class="inspector-icon" aria-hidden="true">&#9881;</div>
-          <p>Select a step above to see what happens at each stage of the collaboration loop.</p>
+      <div class="pain-grid">
+        <div class="pain-chip reveal">
+          <div class="pain-chip__num pain-chip__num--1">01</div>
+          <h3>人工审查疲劳</h3>
+          <p>每次输出都要逐行比对，重复劳动耗光精力。</p>
+        </div>
+        <div class="pain-chip reveal">
+          <div class="pain-chip__num pain-chip__num--2">02</div>
+          <h3>单智能体越改越偏</h3>
+          <p>无人纠正，AI 在错误方向上自我强化。</p>
+        </div>
+        <div class="pain-chip reveal">
+          <div class="pain-chip__num pain-chip__num--3">03</div>
+          <h3>单一模型视角窄</h3>
+          <p>设计盲区无法自检，缺少交叉验证。</p>
+        </div>
+        <div class="pain-chip reveal">
+          <div class="pain-chip__num pain-chip__num--4">04</div>
+          <h3>Token 白白流失</h3>
+          <p>无执行边界，大量 token 耗在无产出探索。</p>
+        </div>
+        <div class="pain-chip reveal">
+          <div class="pain-chip__num pain-chip__num--5">05</div>
+          <h3>决策记录丢失</h3>
+          <p>取舍理由随会话消失，无法追溯复盘。</p>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="folders" id="folders" aria-label="Request folder structure">
-      <div class="section-head">
-        <h2 class="section-label">Request Folders</h2>
-        <span class="section-badge">task/requests/&lt;id&gt;/</span>
+  <!-- ==================== WHAT IT DOES ==================== -->
+  <section class="section section--dark section--center" id="what-it-does">
+    <div class="container">
+      <span class="section__label">方案</span>
+      <h2 class="section__title">一个协议，两个角色，工程闭环</h2>
+      <p class="section__lead">Brain Agent 制定计划和控制范围，Hands Agent 在授权边界内执行并生成报告。每个任务都是可追溯的受控回合。</p>
+
+      <div class="score-badge reveal">
+        <span class="score-badge__icon">⚡</span>
+        <span>协议文件：</span>
+        <span class="score-badge__val">plan.md</span>
+        <span>·</span>
+        <span class="score-badge__val">execution.md</span>
+        <span>·</span>
+        <span class="score-badge__val">review.md</span>
       </div>
-      <div class="folder-grid">
-        <article class="folder-card folder-card-active" tabindex="0">
-          <div class="folder-icon" aria-hidden="true">R</div>
-          <div class="folder-content">
-            <div class="folder-path">task/requests/<wbr>20260627-190439-fresh-game</div>
-            <div class="folder-files">
-              <span class="file-chip">plan.md</span>
-              <span class="file-chip">context.md</span>
-              <span class="file-chip">execution.md</span>
-              <span class="file-chip">review.md</span>
+
+      <div class="workflow-steps">
+        <div class="card card--dark step-card">
+          <span class="step-card__num">1</span>
+          <h3>创建请求目录</h3>
+          <p>每个任务独立目录，记录目标、语言、轮次、边界。</p>
+        </div>
+        <div class="card card--dark step-card">
+          <span class="step-card__num">2</span>
+          <h3>Brain 编写计划</h3>
+          <p>输出 plan.md，指定文件范围、验证命令和验收标准。</p>
+        </div>
+        <div class="card card--dark step-card">
+          <span class="step-card__num">3</span>
+          <h3>Hands 执行实现</h3>
+          <p>通过 <code>claude -p</code> 或 <code>codex exec</code> 编码，只触碰授权文件。</p>
+        </div>
+        <div class="card card--dark step-card">
+          <span class="step-card__num">4</span>
+          <h3>Brain 审查验收</h3>
+          <p>对照 plan 和 execution 报告，给出 PASS 或 REVISE。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DETAILED WORKFLOW ==================== -->
+  <section class="section section--dark section--center" id="detailed-workflow">
+    <div class="container">
+      <span class="section__label">完整流程</span>
+      <h2 class="section__title">从需求到交付，七步闭环</h2>
+      <p class="section__lead">每次任务都是一次受控回合：用户发起，Brain 规划，Hands 执行，Brain 审查，PASS 或 REVISE。</p>
+
+      <div class="workflow-timeline">
+
+        <div class="workflow-timeline__item workflow-timeline__item--user reveal">
+          <div class="workflow-timeline__dot"></div>
+          <div class="workflow-timeline__card">
+            <div class="workflow-timeline__header">
+              <span class="workflow-timeline__step-num">1</span>
+              <span class="workflow-timeline__role-tag">User</span>
+              <span class="workflow-timeline__title">用户提出需求</span>
+            </div>
+            <p class="workflow-timeline__desc">在 Codex 或 Claude 对话中用自然语言描述任务目标。如需协作，使用 skill 指令即可自动启用 Brain Agent。</p>
+          </div>
+        </div>
+
+        <div class="workflow-timeline__item workflow-timeline__item--brain reveal">
+          <div class="workflow-timeline__dot"></div>
+          <div class="workflow-timeline__card">
+            <div class="workflow-timeline__header">
+              <span class="workflow-timeline__step-num">2</span>
+              <span class="workflow-timeline__role-tag">Brain</span>
+              <span class="workflow-timeline__title">检查仓库并创建请求目录</span>
+            </div>
+            <p class="workflow-timeline__desc">Brain Agent 检查当前仓库状态、已有文件和项目结构，然后创建独立任务目录。</p>
+            <span class="workflow-timeline__file-ref">task/requests/&lt;id&gt;/</span>
+          </div>
+        </div>
+
+        <div class="workflow-timeline__item workflow-timeline__item--brain reveal">
+          <div class="workflow-timeline__dot"></div>
+          <div class="workflow-timeline__card">
+            <div class="workflow-timeline__header">
+              <span class="workflow-timeline__step-num">3</span>
+              <span class="workflow-timeline__role-tag">Brain</span>
+              <span class="workflow-timeline__title">编写 plan.md</span>
+            </div>
+            <p class="workflow-timeline__desc">Brain 生成详细的执行计划：指定允许修改的文件、禁止触碰的范围、验证命令和验收标准。</p>
+            <span class="workflow-timeline__file-ref">plan.md</span>
+          </div>
+        </div>
+
+        <div class="workflow-timeline__item workflow-timeline__item--brain reveal">
+          <div class="workflow-timeline__dot"></div>
+          <div class="workflow-timeline__card">
+            <div class="workflow-timeline__header">
+              <span class="workflow-timeline__step-num">4</span>
+              <span class="workflow-timeline__role-tag">Brain</span>
+              <span class="workflow-timeline__title">组装 context.md</span>
+            </div>
+            <p class="workflow-timeline__desc">Brain 将 Executor 协议、plan.md 和配置信息打包为上下文文件，Hands Agent 将以此为执行依据。</p>
+            <span class="workflow-timeline__file-ref">context.md</span>
+          </div>
+        </div>
+
+        <div class="workflow-timeline__item workflow-timeline__item--hands reveal">
+          <div class="workflow-timeline__dot"></div>
+          <div class="workflow-timeline__card">
+            <div class="workflow-timeline__header">
+              <span class="workflow-timeline__step-num">5</span>
+              <span class="workflow-timeline__role-tag">Hands</span>
+              <span class="workflow-timeline__title">执行实现并写报告</span>
+            </div>
+            <p class="workflow-timeline__desc">Hands Agent 读取 plan.md 和 context.md，严格在授权范围内编辑文件，运行验证命令，最后写入执行报告。</p>
+            <span class="workflow-timeline__file-ref">execution.md</span>
+          </div>
+        </div>
+
+        <div class="workflow-timeline__item workflow-timeline__item--brain reveal">
+          <div class="workflow-timeline__dot"></div>
+          <div class="workflow-timeline__card">
+            <div class="workflow-timeline__header">
+              <span class="workflow-timeline__step-num">6</span>
+              <span class="workflow-timeline__role-tag">Brain</span>
+              <span class="workflow-timeline__title">审查执行结果并写审查报告</span>
+            </div>
+            <p class="workflow-timeline__desc">Brain 读取 execution.md，检查变更文件或 diff，核对 UI 截图等证据，与 plan.md 对照后写出审查结论。</p>
+            <span class="workflow-timeline__file-ref">review.md</span>
+          </div>
+        </div>
+
+        <div class="workflow-timeline__item workflow-timeline__item--review reveal">
+          <div class="workflow-timeline__dot"></div>
+          <div class="workflow-timeline__card">
+            <div class="workflow-timeline__header">
+              <span class="workflow-timeline__step-num">7</span>
+              <span class="workflow-timeline__role-tag">Verdict</span>
+              <span class="workflow-timeline__title">PASS 交付 或 REVISE 重来</span>
+            </div>
+            <p class="workflow-timeline__desc">若满足验收标准则 PASS，将最终结果返回给用户。若不满足则 REVISE，Brain 重写 plan.md 进入下一轮，直到到达最大轮次上限。</p>
+            <div class="workflow-timeline__verdict">
+              <span class="workflow-timeline__pass-badge">✓ PASS</span>
+              <span class="workflow-timeline__revise-badge">↻ REVISE</span>
             </div>
           </div>
-          <div class="folder-badge">Active</div>
-        </article>
-        <article class="folder-card folder-card-archive" tabindex="0">
-          <div class="folder-icon" aria-hidden="true">A</div>
-          <div class="folder-content">
-            <div class="folder-path">history/<wbr>round-1/</div>
-            <div class="folder-files">
-              <span class="file-chip file-chip-snapshot">plan.md</span>
-              <span class="file-chip file-chip-snapshot">execution.md</span>
-              <span class="file-chip file-chip-snapshot">review.md</span>
-            </div>
-          </div>
-          <div class="folder-badge">Archive</div>
-        </article>
-        <article class="folder-card folder-card-artifact" tabindex="0">
-          <div class="folder-icon" aria-hidden="true">UI</div>
-          <div class="folder-content">
-            <div class="folder-path">artifacts/<wbr>round-1/</div>
-            <div class="folder-files">
-              <span class="file-chip file-chip-evidence">desktop.png</span>
-              <span class="file-chip file-chip-evidence">mobile.png</span>
-            </div>
-          </div>
-          <div class="folder-badge">Evidence</div>
-        </article>
-      </div>
-    </section>
-
-    <section class="review-gate" id="review-gate" aria-label="Review gate">
-      <div class="section-head">
-        <h2 class="section-label">Review Gate</h2>
-        <span class="section-badge" id="gate-badge">Ready for review</span>
-      </div>
-      <div class="gate-controls">
-        <button class="gate-btn gate-btn-pass" id="btn-pass" aria-label="Pass review - approve and finish">
-          <span class="gate-btn-icon" aria-hidden="true">&#10003;</span>
-          <span class="gate-btn-label">PASS</span>
-          <span class="gate-btn-hint">Approve and finish</span>
-        </button>
-        <div class="gate-divider" aria-hidden="true">
-          <span class="gate-vs">or</span>
         </div>
-        <button class="gate-btn gate-btn-revise" id="btn-revise" aria-label="Revise - send back for changes">
-          <span class="gate-btn-icon" aria-hidden="true">&#8635;</span>
-          <span class="gate-btn-label">REVISE</span>
-          <span class="gate-btn-hint">Send back for changes</span>
-        </button>
-      </div>
-      <div class="gate-result" id="gate-result" aria-live="polite"></div>
-    </section>
 
-    <section class="callout">
-      <div class="callout-card">
-        <p class="callout-text">Codex is the <strong>brain</strong>. Claude is the <strong>hands</strong>. Together they form an auditable engineering loop with explicit plans, bounded execution, structured reports, and review gates.</p>
-        <p class="callout-sub">Each user request gets its own folder. Every round is archived. Every change is traceable.</p>
       </div>
-    </section>
-  </main>
+    </div>
+  </section>
+
+  <!-- ==================== BIDIRECTIONAL MODES ==================== -->
+  <section class="section section--center" id="modes">
+    <div class="container">
+      <span class="section__label">双模式</span>
+      <h2 class="section__title">谁更适合当前任务，谁就当大脑</h2>
+      <p class="section__lead">同一套协议支持两个方向。Codex 强于本地工程，Claude 强于推理生成。按需切换，不绑定角色。</p>
+      <div class="card-grid card-grid--2" style="margin-top: 36px;">
+        <div class="card mode-card mode-card--codex reveal">
+          <h3>Codex 主导模式</h3>
+          <p>Codex 规划和审查，Claude 通过命令行执行实现。</p>
+          <div class="mode-card__roles">
+            <div class="mode-card__role mode-card__role--brain">Codex<br><small>Brain</small></div>
+            <span class="mode-card__arrow" aria-hidden="true">&#8594;</span>
+            <div class="mode-card__role mode-card__role--hands">Claude<br><small>Hands</small></div>
+          </div>
+          <code class="mode-card__cmd">claude -p <span class="token">"&lt;executor prompt&gt;"</span></code>
+        </div>
+        <div class="card mode-card mode-card--claude reveal">
+          <h3>Claude 主导模式</h3>
+          <p>Claude 编写计划和验收，Codex 通过 exec 执行实现。</p>
+          <div class="mode-card__roles">
+            <div class="mode-card__role mode-card__role--brain">Claude<br><small>Brain</small></div>
+            <span class="mode-card__arrow" aria-hidden="true">&#8594;</span>
+            <div class="mode-card__role mode-card__role--hands">Codex<br><small>Hands</small></div>
+          </div>
+          <code class="mode-card__cmd">codex exec <span class="token">"&lt;executor prompt&gt;"</span></code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== TASK FILES ==================== -->
+  <section class="section section--center" id="task-files">
+    <div class="container">
+      <span class="section__label">任务文件</span>
+      <h2 class="section__title">task/ 目录里都有什么？谁读谁写？</h2>
+      <p class="section__lead">每个协作任务在 task/ 下都有完整的文件记录。通过 plan.md、execution.md、review.md 和每轮快照，你可以追溯任何一次改动的决策过程——这不是普通的聊天记录，而是结构化的工程审计轨迹。</p>
+
+      <div class="file-map">
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--brain" aria-hidden="true">📌</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/CURRENT.md</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--brain">Brain</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">Brain / Hands</span>
+            </div>
+            <p class="file-map__desc">指向当前活跃请求的指针文件，让两个 Agent 都能定位到正在进行的任务目录。</p>
+          </div>
+        </div>
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--brain" aria-hidden="true">📝</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/requests/&lt;id&gt;/request.md</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--user">User</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">Brain / Hands</span>
+            </div>
+            <p class="file-map__desc">存储用户原始需求，是整个任务的基础输入。</p>
+          </div>
+        </div>
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--brain" aria-hidden="true">🧠</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/requests/&lt;id&gt;/plan.md</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--brain">Brain</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">Hands</span>
+            </div>
+            <p class="file-map__desc">Brain 的核心输出：指定允许修改的文件、禁止触碰的范围、实现目标和验证命令。</p>
+          </div>
+        </div>
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--brain" aria-hidden="true">📦</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/requests/&lt;id&gt;/context.md</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--brain">Brain</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">Hands</span>
+            </div>
+            <p class="file-map__desc">Brain 将 Executor 协议与 plan.md 打包为完整上下文，Hands 启动时以此为准。</p>
+          </div>
+        </div>
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--hands" aria-hidden="true">⚡</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/requests/&lt;id&gt;/execution.md</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--hands">Hands</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">Brain</span>
+            </div>
+            <p class="file-map__desc">Hands 的执行报告：包含文件变更清单、验证命令输出和问题说明。</p>
+          </div>
+        </div>
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--brain" aria-hidden="true">🔍</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/requests/&lt;id&gt;/review.md</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--brain">Brain</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">User / 下一轮</span>
+            </div>
+            <p class="file-map__desc">Brain 的审查结论：对照 plan.md 核对执行结果，给出 PASS 或 REVISE，下一轮 Brain 也会读取。</p>
+          </div>
+        </div>
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--both" aria-hidden="true">📂</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/requests/&lt;id&gt;/history/round-N/</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--brain">Brain（归档）</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">User（审计）</span>
+            </div>
+            <p class="file-map__desc">每轮完成后，所有文件（plan、context、execution、review）的不可变快照存档于此。</p>
+          </div>
+        </div>
+
+        <div class="file-map__card reveal">
+          <div class="file-map__icon file-map__icon--both" aria-hidden="true">📸</div>
+          <div class="file-map__body">
+            <div class="file-map__path">task/requests/&lt;id&gt;/artifacts/round-N/</div>
+            <div class="file-map__io">
+              <span class="file-map__io-label">写：</span><span class="file-map__io-writer file-map__io-writer--hands">Hands / Brain</span>
+              <span class="file-map__io-label">读：</span><span class="file-map__io-reader">Brain / User</span>
+            </div>
+            <p class="file-map__desc">存放截图、UI 证据、生成物等验证附件，让审查有据可查。</p>
+          </div>
+        </div>
+
+        <div class="file-map__note reveal">
+          💡 <strong>请求根目录保存最新状态</strong>，history/round-N/ 保存每轮审计快照。如果你想了解某个改动是怎么来的，翻看 review.md 和对应轮次的 history 即可——不需要在聊天记录里大海捞针。
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== ROUND MECHANISM ==================== -->
+  <section class="section section--dark section--center" id="rounds">
+    <div class="container">
+      <span class="section__label">回合机制</span>
+      <h2 class="section__title">PASS 还是 REVISE？每轮都有明确结论</h2>
+      <p class="section__lead">任务通过受控回合迭代推进，Brain 决定放行还是修正，直到满足验收标准。</p>
+
+      <!-- round explainer -->
+      <div class="round-explainer reveal">
+        <div class="round-explainer__grid">
+          <div class="round-explainer__chip">
+            <h4>① Plan</h4>
+            <p>Brain 编写 plan.md，定义目标与边界</p>
+          </div>
+          <div class="round-explainer__chip">
+            <h4>② Execute</h4>
+            <p>Hands 读取计划，在授权范围内执行</p>
+          </div>
+          <div class="round-explainer__chip">
+            <h4>③ Review</h4>
+            <p>Brain 对照计划审查结果，做出裁决</p>
+          </div>
+        </div>
+        <div class="round-explainer__detail">
+          <strong>PASS</strong> — 所有验收标准已满足，任务完成，结果交付用户。<br>
+          <strong>REVISE</strong> — 实现偏离计划或未通过验证，Brain 重写 plan.md 进入下一轮。<br>
+          <strong>最大轮次</strong> — 来自 <code>config.json</code> 的默认上限，防止无限循环。达到上限后强制结束。<br>
+          <strong>快照机制</strong> — 每次迭代的最新文件保存在请求根目录，历史快照存入 <code>history/round-N/</code>，完整审计轨迹永不丢失。
+        </div>
+      </div>
+
+      <div class="round-demo reveal">
+        <div class="round-timeline" id="round-timeline" aria-label="回合时间线">
+          <div class="round-node" data-round="1">
+            <span class="round-node__label">R1</span>
+            <div class="round-node__dot round-node__dot--active" id="dot-1"></div>
+            <span class="round-node__label" style="font-size:0.6rem;margin-top:1px;">Plan</span>
+          </div>
+          <div class="round-connector" id="conn-1-2"></div>
+          <div class="round-node" data-round="exec1">
+            <span class="round-node__label">&nbsp;</span>
+            <div class="round-node__dot" id="dot-exec1"></div>
+            <span class="round-node__label" style="font-size:0.6rem;margin-top:1px;">Exec</span>
+          </div>
+          <div class="round-connector" id="conn-exec1-review1"></div>
+          <div class="round-node" data-round="review1">
+            <span class="round-node__label">&nbsp;</span>
+            <div class="round-node__dot" id="dot-review1"></div>
+            <span class="round-node__label" style="font-size:0.6rem;margin-top:1px;">Review</span>
+          </div>
+          <div class="round-connector" id="conn-review1-2"></div>
+          <div class="round-node" data-round="2">
+            <span class="round-node__label">R2</span>
+            <div class="round-node__dot" id="dot-2"></div>
+            <span class="round-node__label" style="font-size:0.6rem;margin-top:1px;">Plan</span>
+          </div>
+          <div class="round-connector" id="conn-2-exec2"></div>
+          <div class="round-node" data-round="exec2">
+            <span class="round-node__label">&nbsp;</span>
+            <div class="round-node__dot" id="dot-exec2"></div>
+            <span class="round-node__label" style="font-size:0.6rem;margin-top:1px;">Exec</span>
+          </div>
+          <div class="round-connector" id="conn-exec2-review2"></div>
+          <div class="round-node" data-round="review2">
+            <span class="round-node__label">&nbsp;</span>
+            <div class="round-node__dot" id="dot-review2"></div>
+            <span class="round-node__label" style="font-size:0.6rem;margin-top:1px;">Review</span>
+          </div>
+        </div>
+
+        <div class="card card--dark round-panel" id="round-panel">
+          <div class="round-panel__status round-panel__status--review" id="round-status">审查中</div>
+          <p class="round-panel__msg" id="round-msg">Round 1 执行报告已生成。Brain 正在审查 plan.md 与 execution.md 的一致性。</p>
+          <div class="round-panel__actions" id="round-actions">
+            <button class="btn btn--pass" type="button" id="btn-pass">PASS 放行</button>
+            <button class="btn btn--revise" type="button" id="btn-revise">REVISE 修正</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== INSTALL / CTA ==================== -->
+  <section class="section section--center" id="install">
+    <div class="container">
+      <span class="section__label">开始使用</span>
+      <h2 class="section__title">放进 Skills 目录即可启用</h2>
+      <p class="section__lead">无需安装依赖，把目录放入 Codex 的 skills 路径，用自然语言启用协作流程。</p>
+      <div class="install-layout">
+        <div class="card dir-tree reveal">
+          <pre><span class="dim">codex-claude-orchestrator/</span>
+<span class="dim">├─</span> SKILL.md
+<span class="dim">├─</span> AGENT.md
+<span class="dim">├─</span> CODEX.md
+<span class="dim">├─</span> CLAUDE.md
+<span class="dim">├─</span> CLAUDE-ORCHESTRATOR.md
+<span class="dim">├─</span> config.json
+<span class="dim">├─ agents/</span>
+<span class="dim">│  └─</span> openai.yaml
+<span class="dim">└─ scripts/</span>
+<span class="dim">   ├─</span> new-request.ps1
+<span class="dim">   ├─</span> invoke-codex.ps1
+<span class="dim">   ├─</span> invoke-claude.ps1
+<span class="dim">   └─</span> capture-ui.ps1</pre>
+        </div>
+        <div class="install-steps">
+          <div class="card install-step reveal">
+            <div class="install-step__num">1</div>
+            <h3>放入 Skills 目录</h3>
+            <p>将 codex-claude-orchestrator/ 放入 Codex 的技能路径。</p>
+          </div>
+          <div class="card install-step reveal">
+            <div class="install-step__num">2</div>
+            <h3>说出协作意图</h3>
+            <p>对话中输入协作指令，Brain Agent 即开始调度执行。</p>
+          </div>
+        </div>
+      </div>
+      <div class="cta-section">
+        <a class="cta-section__url" href="https://github.com/zlx05/Codex-Claude-Orchestrator" target="_blank" rel="noopener">github.com/zlx05/Codex-Claude-Orchestrator</a>
+        <a class="btn btn--primary" href="https://github.com/zlx05/Codex-Claude-Orchestrator" target="_blank" rel="noopener" style="font-size:1rem;min-height:50px;padding:0 28px;">
+          在 GitHub 上获取
+        </a>
+      </div>
+    </div>
+  </section>
 
   <footer class="footer">
-    <p>Codex-Claude Orchestrator Skill &middot; Dual-Agent Workflow &middot; <span id="footer-status">Ready</span></p>
+    由 Codex-Claude Orchestrator 构建 &middot; 双向协作工程流
   </footer>
 
-  <script src="script.js"></script>
+  <script>
+    (function () {
+      /* ---- DOM refs ---- */
+      const canvas = document.getElementById('particle-canvas');
+      const ctx = canvas.getContext('2d');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      /* ---- particles ---- */
+      const particles = [];
+      const mouse = { x: null, y: null };
+      const PARTICLE_COUNT = 100;
+      let animId;
+      let W = 0;
+      let H = 0;
+      let dpr = 1;
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function spawnParticles() {
+        particles.length = 0;
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          particles.push({
+            x: Math.random() * W,
+            y: Math.random() * H,
+            vx: (Math.random() - 0.5) * 0.32,
+            vy: (Math.random() - 0.5) * 0.32,
+            r: Math.random() * 1.8 + 0.8,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      function updateParticle(p) {
+        p.phase += 0.006;
+        p.x += p.vx + Math.cos(p.phase) * 0.05;
+        p.y += p.vy + Math.sin(p.phase) * 0.05;
+
+        if (mouse.x !== null && mouse.y !== null) {
+          var dx = mouse.x - p.x;
+          var dy = mouse.y - p.y;
+          var dist = Math.hypot(dx, dy);
+          if (dist < 180) {
+            var force = (180 - dist) / 180;
+            p.x += dx * force * 0.012;
+            p.y += dy * force * 0.012;
+          }
+        }
+
+        if (p.x < -30) p.x = W + 30;
+        if (p.x > W + 30) p.x = -30;
+        if (p.y < -30) p.y = H + 30;
+        if (p.y > H + 30) p.y = -30;
+      }
+
+      function drawParticles() {
+        ctx.clearRect(0, 0, W, H);
+
+        /* brighter ambient gradient */
+        var g = ctx.createRadialGradient(W * 0.5, H * 0.3, 0, W * 0.5, H * 0.3, Math.max(W, H) * 0.7);
+        g.addColorStop(0, 'rgba(6, 182, 212, 0.05)');
+        g.addColorStop(0.3, 'rgba(251, 146, 60, 0.03)');
+        g.addColorStop(0.6, 'rgba(132, 204, 22, 0.03)');
+        g.addColorStop(1, 'rgba(248, 250, 252, 0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+
+        /* lines - more visible */
+        for (var i = 0; i < particles.length; i++) {
+          var a = particles[i];
+          updateParticle(a);
+          for (var j = i + 1; j < particles.length; j++) {
+            var b = particles[j];
+            var dist = Math.hypot(a.x - b.x, a.y - b.y);
+            if (dist < 130) {
+              var alpha = (1 - dist / 130) * 0.26;
+              ctx.strokeStyle = 'rgba(6, 182, 212, ' + alpha + ')';
+              ctx.lineWidth = 0.9;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.stroke();
+            }
+          }
+        }
+
+        /* dots - game-like multi-color */
+        particles.forEach(function (p, idx) {
+          var m = idx % 5;
+          var hue;
+          if (m === 0) hue = '6, 182, 212';       /* cyan */
+          else if (m === 1) hue = '132, 204, 22';  /* lime */
+          else if (m === 2) hue = '251, 146, 60';  /* coral */
+          else if (m === 3) hue = '236, 72, 153';  /* pink */
+          else hue = '14, 165, 233';               /* blue */
+
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(' + hue + ', 0.78)';
+          ctx.shadowColor = 'rgba(' + hue + ', 0.55)';
+          ctx.shadowBlur = 10;
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        });
+      }
+
+      function loop() {
+        drawParticles();
+        if (!reduceMotion) {
+          animId = requestAnimationFrame(loop);
+        }
+      }
+
+      function startParticles() {
+        resize();
+        spawnParticles();
+        loop();
+      }
+
+      /* pointer tracking */
+      document.addEventListener('pointermove', function (e) {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      });
+      document.addEventListener('pointerleave', function () {
+        mouse.x = null;
+        mouse.y = null;
+      });
+
+      window.addEventListener('resize', function () {
+        cancelAnimationFrame(animId);
+        startParticles();
+      });
+
+      if (!reduceMotion) {
+        startParticles();
+      } else {
+        resize();
+        spawnParticles();
+        drawParticles();
+      }
+
+      /* ---- floating chips animation ---- */
+      var chipEls = document.querySelectorAll('.float-chip');
+      if (!reduceMotion && chipEls.length) {
+        /* stagger the chips with varied animation durations */
+        chipEls.forEach(function (chip, i) {
+          var dur = 6 + (i % 4) * 2;
+          var delay = i * 0.8;
+          chip.style.animationDuration = dur + 's';
+          chip.style.animationDelay = delay + 's';
+          if (i % 3 === 0) {
+            chip.style.animationName = 'chip-float-alt';
+          }
+        });
+      }
+
+      /* ---- scroll reveal ---- */
+      var revealEls = document.querySelectorAll('.reveal, .step-card');
+      var revealObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+          }
+        });
+      }, { threshold: 0.18 });
+
+      revealEls.forEach(function (el) { revealObserver.observe(el); });
+
+      /* ---- interactive round demo ---- */
+      var roundState = {
+        step: 'review1',
+        currentRound: 1,
+        maxRounds: 2
+      };
+
+      var dotIds = ['dot-1', 'dot-exec1', 'dot-review1', 'dot-2', 'dot-exec2', 'dot-review2'];
+      var connIds = ['conn-1-2', 'conn-exec1-review1', 'conn-review1-2', 'conn-2-exec2', 'conn-exec2-review2'];
+      var statusEl = document.getElementById('round-status');
+      var msgEl = document.getElementById('round-msg');
+      var actionsEl = document.getElementById('round-actions');
+
+      function clearDots() {
+        dotIds.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) { el.className = 'round-node__dot'; }
+        });
+        connIds.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) { el.className = 'round-connector'; }
+        });
+      }
+
+      function setDot(id, cls) {
+        var el = document.getElementById(id);
+        if (el) { el.className = 'round-node__dot ' + cls; }
+      }
+
+      function setConn(id, cls) {
+        var el = document.getElementById(id);
+        if (el) { el.className = 'round-connector ' + cls; }
+      }
+
+      function updateTimeline() {
+        clearDots();
+        if (roundState.step === 'plan1') {
+          setDot('dot-1', 'round-node__dot--active');
+        } else if (roundState.step === 'exec1') {
+          setDot('dot-1', 'round-node__dot--done');
+          setConn('conn-1-2', 'round-connector--done');
+          setDot('dot-exec1', 'round-node__dot--active');
+        } else if (roundState.step === 'review1') {
+          setDot('dot-1', 'round-node__dot--done');
+          setConn('conn-1-2', 'round-connector--done');
+          setDot('dot-exec1', 'round-node__dot--done');
+          setConn('conn-exec1-review1', 'round-connector--done');
+          setDot('dot-review1', 'round-node__dot--active');
+        } else if (roundState.step === 'done') {
+          setDot('dot-1', 'round-node__dot--done');
+          setConn('conn-1-2', 'round-connector--done');
+          setDot('dot-exec1', 'round-node__dot--done');
+          setConn('conn-exec1-review1', 'round-connector--done');
+          setDot('dot-review1', 'round-node__dot--done');
+          statusEl.className = 'round-panel__status round-panel__status--pass';
+          statusEl.textContent = 'PASS';
+          msgEl.textContent = '审查通过！所有验收标准已满足。plan.md、execution.md 和 review.md 已归档。';
+          actionsEl.innerHTML = '<button class="btn btn--reset" type="button" id="btn-reset">重新演示</button>';
+          document.getElementById('btn-reset').addEventListener('click', resetRound);
+          return;
+        } else if (roundState.step === 'plan2') {
+          setDot('dot-1', 'round-node__dot--done');
+          setConn('conn-1-2', 'round-connector--done');
+          setDot('dot-exec1', 'round-node__dot--done');
+          setConn('conn-exec1-review1', 'round-connector--done');
+          setDot('dot-review1', 'round-node__dot--rejected');
+          setConn('conn-review1-2', 'round-connector--active');
+          setDot('dot-2', 'round-node__dot--active');
+        } else if (roundState.step === 'exec2') {
+          setDot('dot-1', 'round-node__dot--done');
+          setConn('conn-1-2', 'round-connector--done');
+          setDot('dot-exec1', 'round-node__dot--done');
+          setConn('conn-exec1-review1', 'round-connector--done');
+          setDot('dot-review1', 'round-node__dot--rejected');
+          setConn('conn-review1-2', 'round-connector--done');
+          setDot('dot-2', 'round-node__dot--done');
+          setConn('conn-2-exec2', 'round-connector--done');
+          setDot('dot-exec2', 'round-node__dot--active');
+        } else if (roundState.step === 'review2') {
+          setDot('dot-1', 'round-node__dot--done');
+          setConn('conn-1-2', 'round-connector--done');
+          setDot('dot-exec1', 'round-node__dot--done');
+          setConn('conn-exec1-review1', 'round-connector--done');
+          setDot('dot-review1', 'round-node__dot--rejected');
+          setConn('conn-review1-2', 'round-connector--done');
+          setDot('dot-2', 'round-node__dot--done');
+          setConn('conn-2-exec2', 'round-connector--done');
+          setDot('dot-exec2', 'round-node__dot--done');
+          setConn('conn-exec2-review2', 'round-connector--done');
+          setDot('dot-review2', 'round-node__dot--active');
+        } else if (roundState.step === 'done2') {
+          setDot('dot-1', 'round-node__dot--done');
+          setConn('conn-1-2', 'round-connector--done');
+          setDot('dot-exec1', 'round-node__dot--done');
+          setConn('conn-exec1-review1', 'round-connector--done');
+          setDot('dot-review1', 'round-node__dot--rejected');
+          setConn('conn-review1-2', 'round-connector--done');
+          setDot('dot-2', 'round-node__dot--done');
+          setConn('conn-2-exec2', 'round-connector--done');
+          setDot('dot-exec2', 'round-node__dot--done');
+          setConn('conn-exec2-review2', 'round-connector--done');
+          setDot('dot-review2', 'round-node__dot--done');
+        }
+      }
+
+      function updatePanel() {
+        if (roundState.step === 'review1') {
+          statusEl.className = 'round-panel__status round-panel__status--review';
+          statusEl.textContent = '审查中';
+          msgEl.textContent = 'Round 1 执行报告已生成。Brain 正在审查 plan.md 与 execution.md 的一致性。';
+          actionsEl.innerHTML = '<button class="btn btn--pass" type="button" id="btn-pass">PASS 放行</button><button class="btn btn--revise" type="button" id="btn-revise">REVISE 修正</button>';
+          document.getElementById('btn-pass').addEventListener('click', function () { handlePass(); });
+          document.getElementById('btn-revise').addEventListener('click', function () { handleRevise(); });
+        } else if (roundState.step === 'plan2') {
+          statusEl.className = 'round-panel__status round-panel__status--revise';
+          statusEl.textContent = 'REVISE';
+          msgEl.textContent = '审查未通过。Brain 已生成新的 plan.md，修正了范围和验收标准。Hands 将重新执行。';
+          actionsEl.innerHTML = '<button class="btn btn--primary" type="button" id="btn-continue">继续到执行阶段</button>';
+          document.getElementById('btn-continue').addEventListener('click', function () {
+            roundState.step = 'exec2';
+            updateTimeline();
+            updatePanel();
+          });
+        } else if (roundState.step === 'exec2') {
+          statusEl.className = 'round-panel__status round-panel__status--review';
+          statusEl.textContent = '执行中';
+          msgEl.textContent = 'Hands Agent 按修正后的 plan.md 重新执行，将结果写入 execution.md。';
+          actionsEl.innerHTML = '<button class="btn btn--primary" type="button" id="btn-continue2">查看审查结果</button>';
+          document.getElementById('btn-continue2').addEventListener('click', function () {
+            roundState.step = 'review2';
+            updateTimeline();
+            updatePanel();
+          });
+        } else if (roundState.step === 'review2') {
+          statusEl.className = 'round-panel__status round-panel__status--review';
+          statusEl.textContent = '最终审查';
+          msgEl.textContent = 'Round 2 执行完成。Brain 确认修正后的实现满足所有验收条件。';
+          actionsEl.innerHTML = '<button class="btn btn--pass" type="button" id="btn-pass2">PASS 完成</button>';
+          document.getElementById('btn-pass2').addEventListener('click', function () {
+            roundState.step = 'done2';
+            updateTimeline();
+            updatePanel();
+          });
+        } else if (roundState.step === 'done2') {
+          statusEl.className = 'round-panel__status round-panel__status--pass';
+          statusEl.textContent = 'PASS';
+          msgEl.textContent = '任务通过两轮迭代完成！每回合的记录保存在请求目录中，构成完整审计轨迹。';
+          actionsEl.innerHTML = '<button class="btn btn--reset" type="button" id="btn-reset">重新演示</button>';
+          document.getElementById('btn-reset').addEventListener('click', resetRound);
+        }
+      }
+
+      function handlePass() {
+        roundState.step = 'done';
+        updateTimeline();
+        updatePanel();
+      }
+
+      function handleRevise() {
+        roundState.currentRound = 2;
+        roundState.step = 'plan2';
+        updateTimeline();
+        updatePanel();
+      }
+
+      function resetRound() {
+        roundState.step = 'review1';
+        roundState.currentRound = 1;
+        updateTimeline();
+        updatePanel();
+      }
+
+      updateTimeline();
+      updatePanel();
+
+      /* ---- smooth anchor for CTA ---- */
+      document.querySelectorAll('a[href^="#"]').forEach(function (link) {
+        link.addEventListener('click', function (e) {
+          var target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            e.preventDefault();
+            target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

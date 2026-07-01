@@ -28,6 +28,117 @@ function Copy-IfExists {
     }
 }
 
+function Resolve-Command {
+    param(
+        [string]$Command,
+        [string]$CommandName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Command)) {
+        throw "$CommandName command is empty. Set config.json $($CommandName.ToLower())Command, pass -$CommandName`Command, or set ${CommandName}_COMMAND."
+    }
+
+    function Test-CommandCandidate {
+        param([string]$Candidate)
+        if ([string]::IsNullOrWhiteSpace($Candidate)) { return $null }
+        if (Test-Path -LiteralPath $Candidate -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $Candidate).Path
+        }
+        $cmd = Get-Command $Candidate -ErrorAction SilentlyContinue
+        if ($null -ne $cmd) {
+            if ($cmd.PSObject.Properties.Name -contains "Path" -and -not [string]::IsNullOrWhiteSpace($cmd.Path)) {
+                return $cmd.Path
+            }
+            if (-not [string]::IsNullOrWhiteSpace($cmd.Source)) {
+                return $cmd.Source
+            }
+            return $cmd.Name
+        }
+        return $null
+    }
+
+    # Try the current command value first.
+    $result = Test-CommandCandidate $Command
+    if ($result) { return $result }
+
+    # For Claude, try common alternate command names on PATH.
+    if ($CommandName -eq "CLAUDE") {
+        $altNames = @("claude.cmd", "claude.ps1", "claude.exe")
+        foreach ($altName in $altNames) {
+            if ($altName -eq $Command) { continue }
+            $result = Test-CommandCandidate $altName
+            if ($result) { return $result }
+        }
+    }
+
+    # For Codex, scan common VS Code extension directories for bundled codex.exe.
+    if ($CommandName -eq "CODEX") {
+        $vsCodeBaseDirs = @(
+            "$env:USERPROFILE\.vscode\extensions",
+            "$env:USERPROFILE\.vscode-insiders\extensions"
+        )
+        foreach ($baseDir in $vsCodeBaseDirs) {
+            if (-not (Test-Path -LiteralPath $baseDir)) { continue }
+            $chatGptDirs = Get-ChildItem -LiteralPath $baseDir -Directory -Filter "openai.chatgpt-*" -ErrorAction SilentlyContinue
+            foreach ($dir in $chatGptDirs) {
+                $knownPaths = @(
+                    Join-Path $dir.FullName "bin\windows-x86_64\codex.exe"
+                    Join-Path $dir.FullName "bin\codex.exe"
+                )
+                foreach ($p in $knownPaths) {
+                    if (Test-Path -LiteralPath $p -PathType Leaf) {
+                        return $p
+                    }
+                }
+            }
+            $found = Get-ChildItem -LiteralPath $baseDir -Recurse -Depth 5 -Filter "codex.exe" -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -match "\\openai\\" -or $_.FullName -match "\\openai\." } |
+                Select-Object -First 1
+            if ($found) {
+                return $found.FullName
+            }
+        }
+    }
+
+    # For Claude, scan VS Code extension directories for claude* executables.
+    if ($CommandName -eq "CLAUDE") {
+        $vsCodeBaseDirs = @(
+            "$env:USERPROFILE\.vscode\extensions",
+            "$env:USERPROFILE\.vscode-insiders\extensions"
+        )
+        foreach ($baseDir in $vsCodeBaseDirs) {
+            if (-not (Test-Path -LiteralPath $baseDir)) { continue }
+            $found = Get-ChildItem -LiteralPath $baseDir -Recurse -Depth 5 -Filter "claude.exe" -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            if ($found) {
+                return $found.FullName
+            }
+        }
+    }
+
+    $triedMsg = "Tried:`n- Command '$Command' (literal path and PATH lookup)"
+    if ($CommandName -eq "CLAUDE") {
+        $triedMsg += "`n- Alternate names on PATH: claude.cmd, claude.ps1, claude.exe`n- VS Code extension directories under .vscode\extensions and .vscode-insiders\extensions"
+    }
+    if ($CommandName -eq "CODEX") {
+        $triedMsg += "`n- VS Code extension directories under .vscode\extensions\openai.chatgpt-* and .vscode-insiders\extensions\openai.chatgpt-*"
+    }
+
+    throw @"
+Automatic $CommandName CLI discovery failed.
+
+$triedMsg
+
+Fix options:
+1. Make sure the matching VS Code extension or CLI is installed.
+2. Restart VS Code/Claude Code so the terminal sees newly installed commands.
+3. Optional fallback: set the full executable path in codex-claude-orchestrator/config.json:
+   "$($CommandName.ToLower())Command": "C:\\path\\to\\$($CommandName.ToLower()).exe"
+4. Optional one-run fallback: pass it with -${CommandName}Command or set:
+   `$env:${CommandName}_COMMAND = "C:\\path\\to\\$($CommandName.ToLower()).exe"
+"@
+}
+
 function Get-TaskRoot {
     param([string]$RequestId)
     if ([string]::IsNullOrWhiteSpace($RequestId)) {
@@ -77,6 +188,9 @@ if ($null -ne $config -and $null -ne $config.taskWorkspaceMode) {
 if ($null -ne $config -and $null -ne $config.claudeCommand -and
     ([string]::IsNullOrWhiteSpace($ClaudeCommand) -or $ClaudeCommand -eq "claude")) {
     $ClaudeCommand = [string]$config.claudeCommand
+}
+if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_COMMAND)) {
+    $ClaudeCommand = $env:CLAUDE_COMMAND
 }
 
 if ($Round -lt 1) {
@@ -158,6 +272,8 @@ if (-not (Test-Path -LiteralPath "$taskRoot/context.md")) {
 
 $prompt = Get-Content -LiteralPath "$taskRoot/context.md" -Raw -Encoding UTF8
 
+$ClaudeCommand = Resolve-Command -Command $ClaudeCommand -CommandName "CLAUDE"
+
 if ($DryRun) {
     Write-Host "Dry run OK for Claude round $Round."
     Write-Host "Task root: $taskRoot"
@@ -165,6 +281,7 @@ if ($DryRun) {
     Write-Host "Prompt length: $($prompt.Length) characters"
     Write-Host "Interaction language: $interactionLanguage"
     Write-Host "Report language: $reportLanguage"
+    Write-Host "Claude command: $ClaudeCommand"
     exit 0
 }
 

@@ -12,6 +12,8 @@ This skill supports two bounded two-agent engineering loops that are directional
 
 The mode is selected automatically by the host surface: if you are in Codex, you are the brain; if you are in Claude, you are the brain. Both modes use the same task root structure and review gates.
 
+The bundled invocation wrappers resolve `codex` and `claude` automatically from PATH and common VS Code / VS Code Insiders extension folders. Treat manual command-path configuration as a fallback for unusual environments, not as a normal user setup step.
+
 ## Host Auto-Selection
 
 - **Codex host** -- Codex-led mode. Read `AGENT.md` for the brain protocol. Codex writes plans, invokes Claude via `scripts/invoke-claude.ps1`, and reviews results.

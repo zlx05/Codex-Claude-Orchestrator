@@ -81,6 +81,8 @@ codex-claude-orchestrator/CLAUDE-ORCHESTRATOR.md
 使用 codex-claude-orchestrator/CLAUDE-ORCHESTRATOR.md，运行双向 PASS/REVISE 循环，Claude 做大脑。
 ```
 
+注意：正常情况下不需要手动配置 CLI 路径。`invoke-codex.ps1` 和 `invoke-claude.ps1` 会先查找当前终端里的命令，再自动扫描常见 VS Code / VS Code Insiders 扩展目录，例如 OpenAI ChatGPT 扩展自带的 `codex.exe`。
+
 如果你只想让当前 AI 单独工作，不要提”协作 skill”即可。
 
 ## 工作方式
@@ -159,9 +161,7 @@ codex-claude-orchestrator/CLAUDE-ORCHESTRATOR.md
 ├─ README.md
 ├─ LICENSE
 ├─ demo/
-│  ├─ index.html
-│  ├─ styles.css
-│  └─ script.js
+│  └─ index.html
 └─ codex-claude-orchestrator/
    ├─ SKILL.md
    ├─ AGENT.md
@@ -183,7 +183,7 @@ codex-claude-orchestrator/CLAUDE-ORCHESTRATOR.md
 
 - `README.md`：GitHub 首页中文说明。
 - `LICENSE`：开源许可证。
-- `demo/`：展示这个协作 skill 的静态网页。
+- `demo/`：展示这个协作 skill 的单文件静态宣传页。
 - `codex-claude-orchestrator/`：真正的 Codex skill，可安装部分。
 
 ## Skill 内部文件
@@ -273,16 +273,43 @@ task/
 ## 环境要求
 
 - PowerShell。
-- 已安装可用的 `claude` 命令。
-- `claude -p` 支持非交互调用。
+- VS Code / VS Code Insiders 里已经可用 Codex 和 Claude，或本机已经安装对应 CLI。
+- 调用脚本会自动解析 `codex` / `claude` 命令；普通用户通常不需要配置路径。
 - 如果要做 UI 截图审查，需要 Chrome 或 Edge。
 - `capture-ui.ps1` 使用浏览器调试接口，不要求 Python Playwright。
 
 如果你的 `claude` 命令底层接的是 DeepSeek，只要命令行接口兼容 `claude -p`，仍然可以使用。
 
+### 自动发现失败时怎么办
+
+少数环境里，VS Code 扩展目录不在默认位置，或者 CLI 安装方式比较特殊。这时先在当前终端测试：
+
+```powershell
+codex --help
+codex exec --help
+claude --help
+```
+
+如果仍然找不到，才需要任选一种 fallback：
+
+1. 重启 VS Code / Claude Code，让终端重新加载环境。
+2. 在 `codex-claude-orchestrator/config.json` 里填写完整路径，例如：
+
+```json
+"codexCommand": "C:\\Users\\你的用户名\\.vscode\\extensions\\openai.chatgpt-xxx\\bin\\windows-x86_64\\codex.exe"
+```
+
+3. 临时指定环境变量：
+
+```powershell
+$env:CODEX_COMMAND = "C:\path\to\codex.exe"
+```
+
+这只是少数情况下的兜底。默认体验应该是：用户装好 VS Code 里的 Codex / Claude，然后直接调用协作 skill。
+
 ## Demo
 
-`demo/` 里包含一个静态网页，用来展示这个协作 skill 的理念和交互效果。
+`demo/` 里包含一个单文件静态网页，用来展示这个协作 skill 的痛点、流程、轮次机制和下载地址。
 
 可以直接打开：
 
@@ -290,7 +317,7 @@ task/
 demo/index.html
 ```
 
-这个 demo 不需要启动开发服务器。
+这个 demo 不需要启动开发服务器，也可以部署到 GitHub Pages 或任意静态托管服务。
 
 ## 注意事项
 

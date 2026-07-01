@@ -82,7 +82,7 @@ User request
 
 ## Codex Invocation
 
-Prefer the wrapper script because it avoids command-line quoting problems, especially on PowerShell:
+Prefer the wrapper script because it avoids command-line quoting problems and automatically resolves `codex` from PATH or common VS Code / VS Code Insiders extension locations:
 
 ```powershell
 <skill-root>/scripts/invoke-codex.ps1 -ProjectRoot <target-project> -Round <N>
@@ -95,6 +95,14 @@ Use `-SkipAssemble` only when `<task-root>/context.md` has already been manually
 ```
 
 If the user's `codex` command is backed by a different model provider, still use the same CLI entry point unless the user provides a different executable or flags.
+
+Before the first round, prefer a wrapper dry run instead of asking the user to locate `codex.exe` manually:
+
+```powershell
+<skill-root>/scripts/invoke-codex.ps1 -ProjectRoot <target-project> -Round 1 -RequestId <id> -DryRun
+```
+
+If this fails, classify the problem as `ENVIRONMENT_ERROR`. Do not claim the protocol is impossible; explain that automatic CLI discovery failed after checking PATH and common VS Code extension folders. Manual `config.codexCommand` or `$env:CODEX_COMMAND` is a fallback, not the normal user path.
 
 ## Task Directory Semantics
 
